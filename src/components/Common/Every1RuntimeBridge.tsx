@@ -862,7 +862,7 @@ const Every1RuntimeBridge = () => {
             },
             kind: "new_missions",
             sourceKey: `mission:${signals.latestMission.id}`,
-            targetKey: "/missions",
+            targetKey: "/fandrop",
             title: "New mission unlocked"
           });
         }
@@ -880,7 +880,7 @@ const Every1RuntimeBridge = () => {
             },
             kind: "new_perks",
             sourceKey: `perk:${signals.topPerkMission.id}:${signals.topPerkMission.rewardE1xp}`,
-            targetKey: "/missions",
+            targetKey: "/fandrop",
             title: "New perks are up for grabs"
           });
         }
@@ -893,7 +893,7 @@ const Every1RuntimeBridge = () => {
             },
             kind: "mission_winners",
             sourceKey: `mission-winners:${bucketKey}:${signals.missionWinners24h}`,
-            targetKey: "/missions",
+            targetKey: "/fandrop",
             title: "Mission rewards are landing"
           });
         }

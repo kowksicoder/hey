@@ -76,11 +76,6 @@ const navigationItems = {
     solid: <LeaderboardSolid className="size-6" />,
     title: "Leaderboard"
   },
-  "/missions": {
-    outline: <MissionsOutline className="size-6" />,
-    solid: <MissionsSolid className="size-6" />,
-    title: "Missions"
-  },
   "/notifications": {
     outline: <BellOutline className="size-6" />,
     refreshDocs: [NotificationsDocument, NotificationIndicatorDocument],
@@ -91,6 +86,11 @@ const navigationItems = {
     outline: <ReferralsOutline className="size-6" />,
     solid: <ReferralsSolid className="size-6" />,
     title: "Referrals"
+  },
+  "/fandrop": {
+    outline: <MissionsOutline className="size-6" />,
+    solid: <MissionsSolid className="size-6" />,
+    title: "FanDrop"
   },
   "/staff": {
     outline: <StaffOutline className="size-6" />,
@@ -145,7 +145,7 @@ const NavItems = memo(({ isLoggedIn }: { isLoggedIn: boolean }) => {
     "/leaderboard",
     "/swap",
     "/referrals",
-    "/missions",
+    "/fandrop",
     ...(sessionToken ? ["/staff"] : []),
     ...(isLoggedIn ? ["/notifications", "/groups"] : [])
   ];

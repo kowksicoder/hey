@@ -92,8 +92,8 @@ const MobileDrawerMenu = () => {
       : []),
     {
       icon: <FlagIcon className="size-4.5" />,
-      label: "Missions",
-      path: "/missions"
+      label: "FanDrop",
+      path: "/fandrop"
     },
     {
       icon: <Cog6ToothIcon className="size-4.5" />,
@@ -125,8 +125,8 @@ const MobileDrawerMenu = () => {
     },
     {
       icon: <FlagIcon className="size-4.5" />,
-      label: "Missions",
-      path: "/missions"
+      label: "FanDrop",
+      path: "/fandrop"
     }
   ];
 

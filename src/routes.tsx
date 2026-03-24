@@ -46,6 +46,8 @@ import Showcase from "@/components/Showcase";
 import ShowcaseDetail from "@/components/Showcase/Detail";
 import Streaks from "@/components/Streaks";
 import Swap from "@/components/Swap";
+import FanDrop from "@/components/FanDrop";
+import FanDropDetail from "@/components/FanDrop/Detail";
 import RewardsSettings from "./components/Settings/Rewards";
 import Staff from "./components/Staff";
 
@@ -65,7 +67,9 @@ const Routes = () => {
           <Route element={<ShowcaseDetail />} path="showcase/:slug" />
           <Route element={<Swap />} path="swap" />
           <Route element={<Referrals />} path="referrals" />
-          <Route element={<Missions />} path="missions" />
+          <Route element={<Navigate replace to="/fandrop" />} path="missions" />
+          <Route element={<FanDrop />} path="fandrop" />
+          <Route element={<FanDropDetail />} path="fandrop/:slug" />
           <Route element={<Streaks />} path="streaks" />
           <Route element={<Search />} path="search" />
           <Route element={<Groups />} path="groups" />

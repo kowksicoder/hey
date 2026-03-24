@@ -1,23 +1,14 @@
-import ReferralRewardsHub from "@/components/Rewards/ReferralRewardsHub";
-import NotLoggedIn from "@/components/Shared/NotLoggedIn";
-import PageLayout from "@/components/Shared/PageLayout";
+import { Navigate } from "react-router";
 import { useAccountStore } from "@/store/persisted/useAccountStore";
 
 const Missions = () => {
   const { currentAccount } = useAccountStore();
 
   if (!currentAccount) {
-    return <NotLoggedIn />;
+    return <Navigate replace to="/fandrop" />;
   }
 
-  return (
-    <PageLayout
-      description="Invite creators, unlock referral bonuses, and build up your E1XP rewards."
-      title="Invite & Earn"
-    >
-      <ReferralRewardsHub />
-    </PageLayout>
-  );
+  return <Navigate replace to="/fandrop" />;
 };
 
 export default Missions;
