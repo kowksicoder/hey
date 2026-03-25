@@ -2,7 +2,7 @@ import { XCircleIcon } from "@heroicons/react/24/solid";
 import { usePrivy } from "@privy-io/react-auth";
 import { useIsClient } from "@uidotdev/usehooks";
 import { memo, useEffect, useMemo, useState } from "react";
-import { Outlet, useLocation } from "react-router";
+import { Outlet, useLocation, useNavigate } from "react-router";
 import { Toaster, type ToasterProps } from "sonner";
 import NotificationIcon from "@/components/Notification/NotificationIcon";
 import FullPageLoader from "@/components/Shared/FullPageLoader";
@@ -11,7 +11,7 @@ import GlobalModals from "@/components/Shared/GlobalModals";
 import Navbar from "@/components/Shared/Navbar";
 import BottomNavigation from "@/components/Shared/Navbar/BottomNavigation";
 import MobileHeader from "@/components/Shared/Navbar/MobileHeader";
-import { Spinner } from "@/components/Shared/UI";
+import { ActionStatusModal, Spinner } from "@/components/Shared/UI";
 import { HomeFeedView } from "@/data/enums";
 import cn from "@/helpers/cn";
 import {
@@ -28,9 +28,11 @@ import ReloadTabsWatcher from "./ReloadTabsWatcher";
 
 const Layout = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { theme } = useTheme();
   const { currentAccount, setCurrentAccount } = useAccountStore();
-  const { profile } = useEvery1Store();
+  const { clearSignupCelebration, profile, signupCelebrationProfileId } =
+    useEvery1Store();
   const { viewMode } = useHomeTabStore();
   const isMounted = useIsClient();
   const [mobileSplashReady, setMobileSplashReady] = useState(false);
@@ -117,6 +119,15 @@ const Layout = () => {
     return <FullPageLoader />;
   }
 
+  const handleSignupCelebrationClose = () => {
+    clearSignupCelebration();
+  };
+
+  const handleLaunchCoin = () => {
+    clearSignupCelebration();
+    navigate("/create");
+  };
+
   return (
     <>
       <Toaster
@@ -144,6 +155,16 @@ const Layout = () => {
       <GlobalAlerts />
       <ReloadTabsWatcher />
       <Every1RuntimeBridge />
+      <ActionStatusModal
+        actionLabel="Launch a coin"
+        description="Nice work! Your account is ready. Launch your first coin and start building."
+        label="Signup successful"
+        onAction={handleLaunchCoin}
+        onClose={handleSignupCelebrationClose}
+        show={Boolean(signupCelebrationProfileId)}
+        title={`Welcome${profile?.displayName ? `, ${profile.displayName}` : ""}`}
+        tone="success"
+      />
       {hideMobileHeader ? null : <MobileHeader />}
       <div
         className={cn("mx-auto flex w-full items-start px-0 md:px-5", {

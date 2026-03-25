@@ -27,6 +27,7 @@ import {
   getActiveSpecialEventPopup,
   getProfileEngagementNudgeSignals,
   getProfileFanDrops,
+  getPublicEvery1Profile,
   markMobileNavBadgeSeen,
   normalizeReferralCode,
   recordDailyLoginStreak,
@@ -130,6 +131,7 @@ const Every1RuntimeBridge = () => {
     lastToastNotificationId,
     pendingReferralCode,
     profile,
+    setSignupCelebrationProfileId,
     setLastToastNotificationId,
     setPendingReferralCode,
     setProfile
@@ -199,6 +201,7 @@ const Every1RuntimeBridge = () => {
     if (!currentAccount) {
       hasSyncedProfile.current = false;
       setProfile(null);
+      setSignupCelebrationProfileId(null);
       return;
     }
 
@@ -206,6 +209,16 @@ const Every1RuntimeBridge = () => {
 
     const syncProfile = async () => {
       try {
+        let didProfileExistBeforeSync: boolean | null = null;
+
+        try {
+          didProfileExistBeforeSync = Boolean(
+            await getPublicEvery1Profile({ address: currentAccount.owner })
+          );
+        } catch {
+          didProfileExistBeforeSync = null;
+        }
+
         const syncedProfile = await syncEvery1Profile(currentAccount);
 
         if (cancelled) {
@@ -218,6 +231,10 @@ const Every1RuntimeBridge = () => {
           [EVERY1_PROFILE_QUERY_KEY, syncedProfile.id],
           syncedProfile
         );
+
+        if (didProfileExistBeforeSync === false) {
+          setSignupCelebrationProfileId(syncedProfile.id);
+        }
       } catch (error) {
         console.error("Failed to sync Every1 profile", error);
       }
@@ -228,7 +245,13 @@ const Every1RuntimeBridge = () => {
     return () => {
       cancelled = true;
     };
-  }, [currentAccount, hasConfiguredSupabase, queryClient, setProfile]);
+  }, [
+    currentAccount,
+    hasConfiguredSupabase,
+    queryClient,
+    setProfile,
+    setSignupCelebrationProfileId
+  ]);
 
   useEffect(() => {
     if (!hasConfiguredSupabase || !profile?.id) {

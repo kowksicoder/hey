@@ -2,14 +2,18 @@ import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import type { CSSProperties } from "react";
 import { memo } from "react";
 import cn from "@/helpers/cn";
+import Button from "./Button";
 import Modal from "./Modal";
 import Spinner from "./Spinner";
 
 type ActionStatusTone = "pending" | "success";
 
 interface ActionStatusModalProps {
+  actionLabel?: string;
   description?: string;
   label?: string;
+  onAction?: () => void;
+  onClose?: () => void;
   show: boolean;
   tone: ActionStatusTone;
   title: string;
@@ -28,13 +32,16 @@ const CONFETTI_PIECES = [
 ] as const;
 
 const ActionStatusModal = ({
+  actionLabel,
   description,
   label,
+  onAction,
+  onClose,
   show,
   tone,
   title
 }: ActionStatusModalProps) => (
-  <Modal show={show} size="xs">
+  <Modal onClose={onClose} show={show} size="xs">
     <div className="relative overflow-hidden px-4 py-4 text-center md:px-5 md:py-5">
       {tone === "success" ? (
         <div
@@ -92,6 +99,14 @@ const ActionStatusModal = ({
           <p className="mx-auto mt-1.5 max-w-[16rem] text-balance text-[12px] text-gray-500 leading-5 md:max-w-[17rem] dark:text-gray-400">
             {description}
           </p>
+        ) : null}
+
+        {actionLabel ? (
+          <div className="mt-4">
+            <Button className="w-full justify-center" onClick={onAction}>
+              {actionLabel}
+            </Button>
+          </div>
         ) : null}
       </div>
     </div>
