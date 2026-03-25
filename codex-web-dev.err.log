@@ -1,0 +1,250 @@
+[2m5:59:55 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\MIKKI\3D Objects\hey\hey\src\components\Swap\index.tsx: Unterminated JSX contents. (1302:17)
+
+[0m [90m 1300 |[31m         ) [33m:[31m [36mnull[31m}
+ [90m 1301 |[31m       [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+[31m[1m>[22m[31m[90m 1302 |[31m     [33m<[31m[33m/[31m[33mPageLayout[31m[33m>[31m
+ [90m      |[31m                  [31m[1m^[22m[31m
+ [90m 1303 |[31m   )[33m;[31m
+ [90m 1304 |[31m }[33m;[31m
+ [90m 1305 |[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/MIKKI/3D Objects/hey/hey/src/components/Swap/index.tsx[39m:1302:17
+      at constructor (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:367:19)
+      at TypeScriptParserMixin.raise (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6624:19)
+      at TypeScriptParserMixin.jsxReadToken (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4477:20)
+      at TypeScriptParserMixin.getTokenFromCode (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4803:12)
+      at TypeScriptParserMixin.getTokenFromCode (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10042:11)
+      at TypeScriptParserMixin.nextToken (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5807:10)
+      at TypeScriptParserMixin.next (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5717:10)
+      at TypeScriptParserMixin.eat (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5721:12)
+      at TypeScriptParserMixin.expect (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6923:15)
+      at TypeScriptParserMixin.jsxParseClosingElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4709:10)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4724:37)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4727:32)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4727:32)
+      at TypeScriptParserMixin.jsxParseElement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4778:17)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4788:19)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10895:21)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9828:39
+      at TypeScriptParserMixin.tryParse (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6932:20)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9828:18)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10864:39
+      at TypeScriptParserMixin.allowInAnd (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12500:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10864:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12567:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11747:28)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11395:23)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4793:20)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10895:21)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9839:20)
+      at TypeScriptParserMixin.parseExpressionBase (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10848:23)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10844:39
+      at TypeScriptParserMixin.allowInAnd (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12495:16)
+      at TypeScriptParserMixin.parseExpression (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10844:17)
+      at TypeScriptParserMixin.parseReturnStatement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13218:28)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12874:21)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12843:17)
+[2m6:02:34 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\MIKKI\3D Objects\hey\hey\src\components\Swap\index.tsx: Unterminated JSX contents. (1486:17)
+
+[0m [90m 1484 |[31m         ) [33m:[31m [36mnull[31m}
+ [90m 1485 |[31m       [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+[31m[1m>[22m[31m[90m 1486 |[31m     [33m<[31m[33m/[31m[33mPageLayout[31m[33m>[31m
+ [90m      |[31m                  [31m[1m^[22m[31m
+ [90m 1487 |[31m   )[33m;[31m
+ [90m 1488 |[31m }[33m;[31m
+ [90m 1489 |[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/MIKKI/3D Objects/hey/hey/src/components/Swap/index.tsx[39m:1486:17
+      at constructor (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:367:19)
+      at TypeScriptParserMixin.raise (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6624:19)
+      at TypeScriptParserMixin.jsxReadToken (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4477:20)
+      at TypeScriptParserMixin.getTokenFromCode (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4803:12)
+      at TypeScriptParserMixin.getTokenFromCode (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10042:11)
+      at TypeScriptParserMixin.nextToken (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5807:10)
+      at TypeScriptParserMixin.next (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5717:10)
+      at TypeScriptParserMixin.eat (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5721:12)
+      at TypeScriptParserMixin.expect (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6923:15)
+      at TypeScriptParserMixin.jsxParseClosingElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4709:10)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4724:37)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4727:32)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4727:32)
+      at TypeScriptParserMixin.jsxParseElement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4778:17)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4788:19)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10895:21)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9828:39
+      at TypeScriptParserMixin.tryParse (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6932:20)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9828:18)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10864:39
+      at TypeScriptParserMixin.allowInAnd (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12500:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10864:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12567:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11747:28)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11395:23)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4793:20)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10895:21)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9839:20)
+      at TypeScriptParserMixin.parseExpressionBase (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10848:23)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10844:39
+      at TypeScriptParserMixin.allowInAnd (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12495:16)
+      at TypeScriptParserMixin.parseExpression (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10844:17)
+      at TypeScriptParserMixin.parseReturnStatement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13218:28)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12874:21)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12843:17)
+[2m6:03:16 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\MIKKI\3D Objects\hey\hey\src\components\Swap\index.tsx: Unterminated JSX contents. (1267:17)
+
+[0m [90m 1265 |[31m         ) [33m:[31m [36mnull[31m}
+ [90m 1266 |[31m       [33m<[31m[33m/[31m[33mdiv[31m[33m>[31m
+[31m[1m>[22m[31m[90m 1267 |[31m     [33m<[31m[33m/[31m[33mPageLayout[31m[33m>[31m
+ [90m      |[31m                  [31m[1m^[22m[31m
+ [90m 1268 |[31m   )[33m;[31m
+ [90m 1269 |[31m }[33m;[31m
+ [90m 1270 |[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/MIKKI/3D Objects/hey/hey/src/components/Swap/index.tsx[39m:1267:17
+      at constructor (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:367:19)
+      at TypeScriptParserMixin.raise (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6624:19)
+      at TypeScriptParserMixin.jsxReadToken (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4477:20)
+      at TypeScriptParserMixin.getTokenFromCode (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4803:12)
+      at TypeScriptParserMixin.getTokenFromCode (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10042:11)
+      at TypeScriptParserMixin.nextToken (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5807:10)
+      at TypeScriptParserMixin.next (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5717:10)
+      at TypeScriptParserMixin.eat (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:5721:12)
+      at TypeScriptParserMixin.expect (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6923:15)
+      at TypeScriptParserMixin.jsxParseClosingElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4709:10)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4724:37)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4727:32)
+      at TypeScriptParserMixin.jsxParseElementAt (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4727:32)
+      at TypeScriptParserMixin.jsxParseElement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4778:17)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4788:19)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10895:21)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9828:39
+      at TypeScriptParserMixin.tryParse (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6932:20)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9828:18)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10864:39
+      at TypeScriptParserMixin.allowInAnd (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12500:12)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10864:17)
+      at TypeScriptParserMixin.parseMaybeAssignAllowInOrVoidPattern (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12567:17)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11747:28)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11395:23)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4793:20)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10895:21)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9839:20)
+      at TypeScriptParserMixin.parseExpressionBase (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10848:23)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10844:39
+      at TypeScriptParserMixin.allowInAnd (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12495:16)
+      at TypeScriptParserMixin.parseExpression (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10844:17)
+      at TypeScriptParserMixin.parseReturnStatement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13218:28)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12874:21)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12843:17)
+[2m6:04:32 AM[22m [31m[1m[vite][22m[39m [31mInternal server error: C:\Users\MIKKI\3D Objects\hey\hey\src\components\Swap\index.tsx: Identifier 'walletAddress' has already been declared. (403:8)
+
+[0m [90m 401 |[31m
+ [90m 402 |[31m   [36mconst[31m activeCoin [33m=[31m selectedCoin [33m?[31m[33m?[31m coins[[35m0[31m] [33m?[31m[33m?[31m [33mEMPTY_COIN[31m[33m;[31m
+[31m[1m>[22m[31m[90m 403 |[31m   [36mconst[31m walletAddress [33m=[31m
+ [90m     |[31m         [31m[1m^[22m[31m
+ [90m 404 |[31m     currentAccount[33m?[31m[33m.[31mowner [33m||[31m
+ [90m 405 |[31m     currentAccount[33m?[31m[33m.[31maddress [33m||[31m
+ [90m 406 |[31m     profile[33m?[31m[33m.[31mwalletAddress [33m||[31m[0m[39m
+  Plugin: [35mvite:react-babel[39m
+  File: [36mC:/Users/MIKKI/3D Objects/hey/hey/src/components/Swap/index.tsx[39m:403:8
+[33m  412 |    const gradientId = `swap-chart-${activeCoin.symbol || "coin"}`;
+  413 |  
+  414 |    const computed = useMemo(() => {
+      |                ^
+  415 |      if (!Number.isFinite(parsedFiat) || parsedFiat < 0) {
+  416 |        return { fiat: "0", token: "0.00" };[39m
+      at constructor (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:367:19)
+      at TypeScriptParserMixin.raise (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:6624:19)
+      at TypeScriptScopeHandler.checkRedeclarationInScope (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:1646:19)
+      at TypeScriptScopeHandler.declareName (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:1612:12)
+      at TypeScriptScopeHandler.declareName (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4909:11)
+      at TypeScriptParserMixin.declareNameFromIdentifier (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:7594:16)
+      at TypeScriptParserMixin.checkIdentifier (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:7590:12)
+      at TypeScriptParserMixin.checkLVal (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:7527:12)
+      at TypeScriptParserMixin.parseVarId (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13488:10)
+      at TypeScriptParserMixin.parseVarId (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9805:11)
+      at TypeScriptParserMixin.parseVar (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13459:12)
+      at TypeScriptParserMixin.parseVarStatement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13306:10)
+      at TypeScriptParserMixin.parseVarStatement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9469:31)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12927:23)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12843:17)
+      at TypeScriptParserMixin.parseStatementListItem (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12823:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13392:61)
+      at TypeScriptParserMixin.parseBlockBody (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13385:10)
+      at TypeScriptParserMixin.parseBlock (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13373:10)
+      at TypeScriptParserMixin.parseFunctionBody (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12174:24)
+      at TypeScriptParserMixin.parseArrowExpression (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12149:10)
+      at TypeScriptParserMixin.parseParenAndDistinguishExpression (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11759:12)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11395:23)
+      at TypeScriptParserMixin.parseExprAtom (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:4793:20)
+      at TypeScriptParserMixin.parseExprSubscripts (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11145:23)
+      at TypeScriptParserMixin.parseUpdate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11130:21)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:11110:23)
+      at TypeScriptParserMixin.parseMaybeUnary (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9890:18)
+      at TypeScriptParserMixin.parseMaybeUnaryOrPrivate (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10963:61)
+      at TypeScriptParserMixin.parseExprOps (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10968:23)
+      at TypeScriptParserMixin.parseMaybeConditional (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10945:23)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10895:21)
+      at TypeScriptParserMixin.parseMaybeAssign (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9839:20)
+      at C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10864:39
+      at TypeScriptParserMixin.allowInAnd (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12495:16)
+      at TypeScriptParserMixin.parseMaybeAssignAllowIn (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10864:17)
+      at TypeScriptParserMixin.parseVar (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13460:91)
+      at TypeScriptParserMixin.parseVarStatement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13306:10)
+      at TypeScriptParserMixin.parseVarStatement (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9469:31)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12927:23)
+      at TypeScriptParserMixin.parseStatementContent (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:9569:18)
+      at TypeScriptParserMixin.parseStatementLike (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12843:17)
+      at TypeScriptParserMixin.parseModuleItem (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12820:17)
+      at TypeScriptParserMixin.parseBlockOrModuleBlockBody (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13392:36)
+      at TypeScriptParserMixin.parseBlockBody (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:13385:10)
+      at TypeScriptParserMixin.parseProgram (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12698:10)
+      at TypeScriptParserMixin.parseTopLevel (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:12688:25)
+      at TypeScriptParserMixin.parse (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:14568:25)
+      at TypeScriptParserMixin.parse (C:\Users\MIKKI\3D Objects\hey\hey\node_modules\.pnpm\@babel+parser@7.28.5\node_modules\@babel\parser\lib\index.js:10183:18)

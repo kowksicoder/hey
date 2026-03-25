@@ -94,6 +94,38 @@ export interface Every1PublicProfileStats {
   referralCoinRewards: number;
 }
 
+export interface Every1PublicCollaborationMember {
+  acceptedAt: null | string;
+  avatarUrl: null | string;
+  displayName: null | string;
+  inviteExpiresAt: null | string;
+  joinedAt: null | string;
+  note: null | string;
+  profileId: string;
+  role: Every1CollaborationMemberRole;
+  splitPercent: number;
+  status: Every1CollaborationMemberStatus;
+  username: null | string;
+  walletAddress: null | string;
+}
+
+export interface Every1PublicCoinCollaboration {
+  activeMemberCount: number;
+  coinAddress: string;
+  collaborationId: string;
+  coverImageUrl: null | string;
+  description: null | string;
+  launchId: string;
+  launchedAt: null | string;
+  members: Every1PublicCollaborationMember[];
+  ownerAvatarUrl: null | string;
+  ownerDisplayName: null | string;
+  ownerId: string;
+  ownerUsername: null | string;
+  ticker: string;
+  title: string;
+}
+
 export interface Every1CollaborationEarningsSummary {
   allocationCount: number;
   collaborationCount: number;

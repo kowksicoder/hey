@@ -52,6 +52,8 @@ import type {
   Every1Profile,
   Every1ProfileSocialAccount,
   Every1ProfileVerificationRequest,
+  Every1PublicCoinCollaboration,
+  Every1PublicCollaborationMember,
   Every1PublicProfileStats,
   Every1VerificationProofResult,
   Every1WalletActivityItem,
@@ -80,6 +82,8 @@ export const EVERY1_PROFILE_VERIFICATION_REQUESTS_QUERY_KEY =
   "every1-profile-verification-requests";
 export const EVERY1_PUBLIC_PROFILE_STATS_QUERY_KEY =
   "every1-public-profile-stats";
+export const EVERY1_PUBLIC_COIN_COLLABORATIONS_QUERY_KEY =
+  "every1-public-coin-collaborations";
 export const EVERY1_COLLABORATIONS_QUERY_KEY = "every1-collaborations";
 export const EVERY1_COLLABORATION_EARNINGS_SUMMARY_QUERY_KEY =
   "every1-collaboration-earnings-summary";
@@ -268,6 +272,38 @@ type PublicProfileStatsRow = {
   creator_coin_ticker: null | string;
   profile_id: null | string;
   referral_coin_rewards: null | number | string;
+};
+
+type PublicCoinCollaborationMemberRow = {
+  acceptedAt: null | string;
+  avatarUrl: null | string;
+  displayName: null | string;
+  inviteExpiresAt: null | string;
+  joinedAt: null | string;
+  note: null | string;
+  profileId: string;
+  role: Every1PublicCollaborationMember["role"];
+  splitPercent: null | number | string;
+  status: Every1PublicCollaborationMember["status"];
+  username: null | string;
+  walletAddress: null | string;
+};
+
+type PublicCoinCollaborationRow = {
+  active_member_count: number | string;
+  coin_address: string;
+  collaboration_id: string;
+  cover_image_url: null | string;
+  description: null | string;
+  launch_id: string;
+  launched_at: null | string;
+  members: PublicCoinCollaborationMemberRow[] | null;
+  owner_avatar_url: null | string;
+  owner_display_name: null | string;
+  owner_id: string;
+  owner_username: null | string;
+  ticker: string;
+  title: string;
 };
 
 type CollaborationMemberRow = {
@@ -1141,6 +1177,84 @@ export const getPublicProfileStats = async (input: {
     profileId: row.profile_id,
     referralCoinRewards: toNumber(row.referral_coin_rewards)
   } satisfies Every1PublicProfileStats;
+};
+
+const mapPublicCoinCollaborationMemberRow = (
+  row: PublicCoinCollaborationMemberRow
+): Every1PublicCollaborationMember => ({
+  acceptedAt: row.acceptedAt,
+  avatarUrl: row.avatarUrl,
+  displayName: row.displayName,
+  inviteExpiresAt: row.inviteExpiresAt,
+  joinedAt: row.joinedAt,
+  note: row.note,
+  profileId: row.profileId,
+  role: row.role,
+  splitPercent: toNumber(row.splitPercent),
+  status: row.status,
+  username: row.username,
+  walletAddress: row.walletAddress
+});
+
+const mapPublicCoinCollaborationRow = (
+  row: PublicCoinCollaborationRow
+): Every1PublicCoinCollaboration => ({
+  activeMemberCount: toNumber(row.active_member_count),
+  coinAddress: row.coin_address,
+  collaborationId: row.collaboration_id,
+  coverImageUrl: row.cover_image_url,
+  description: row.description,
+  launchedAt: row.launched_at,
+  launchId: row.launch_id,
+  members: (row.members || []).map(mapPublicCoinCollaborationMemberRow),
+  ownerAvatarUrl: row.owner_avatar_url,
+  ownerDisplayName: row.owner_display_name,
+  ownerId: row.owner_id,
+  ownerUsername: row.owner_username,
+  ticker: row.ticker,
+  title: row.title
+});
+
+export const listPublicCoinCollaborations = async (coinAddresses: string[]) => {
+  const normalizedCoinAddresses = [
+    ...new Set(
+      coinAddresses
+        .map((coinAddress) => coinAddress?.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  ];
+
+  if (!normalizedCoinAddresses.length) {
+    return [] as Every1PublicCoinCollaboration[];
+  }
+
+  const rows = await callRpc<PublicCoinCollaborationRow[]>(
+    "list_public_coin_collaborations",
+    {
+      input_coin_addresses: normalizedCoinAddresses
+    }
+  );
+
+  return (rows || []).map(
+    mapPublicCoinCollaborationRow
+  ) satisfies Every1PublicCoinCollaboration[];
+};
+
+export const listPublicCollaborationCoins = async (input?: {
+  limit?: number;
+  offset?: number;
+}) => {
+  const rows = await callRpc<PublicCoinCollaborationRow[]>(
+    "list_public_collaboration_coins",
+    {
+      input_limit: input?.limit || 24,
+      input_offset: input?.offset || 0
+    }
+  );
+
+  return (rows || []).map(
+    mapPublicCoinCollaborationRow
+  ) satisfies Every1PublicCoinCollaboration[];
 };
 
 export const listProfileCollaborations = async (

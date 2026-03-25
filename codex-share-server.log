@@ -1,0 +1,6 @@
+
+> hey@0.0.0 start C:\Users\MIKKI\3D Objects\hey\hey
+> node script/serve.mjs
+
+Every1 server listening on http://0.0.0.0:4783
+ ELIFECYCLE  Command failed with exit code 4294967295.

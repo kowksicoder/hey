@@ -27,6 +27,7 @@ import cn from "@/helpers/cn";
 import getCoinPath from "@/helpers/getCoinPath";
 import nFormatter from "@/helpers/nFormatter";
 import truncateByWords from "@/helpers/truncateByWords";
+import type { Every1PublicCoinCollaboration } from "@/types/every1";
 import ZoraPostCommentsDrawer from "./ZoraPostCommentsDrawer";
 import ZoraProfileDrawer from "./ZoraProfileDrawer";
 import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
@@ -53,6 +54,27 @@ const getCreatorName = (item: ZoraFeedItem) => {
 
 const getCreatorAvatar = (item: ZoraFeedItem) =>
   item.creatorProfile?.avatar?.previewImage?.medium || DEFAULT_AVATAR;
+
+const getCollaborationLabel = (
+  collaboration?: Every1PublicCoinCollaboration | null
+) => {
+  const names =
+    collaboration?.members
+      .slice(0, 2)
+      .map((member) => member.username || member.displayName || "Collaborator")
+      .filter(Boolean) || [];
+
+  if (!names.length) {
+    return null;
+  }
+
+  const suffix =
+    collaboration && collaboration.activeMemberCount > names.length
+      ? ` +${collaboration.activeMemberCount - names.length}`
+      : "";
+
+  return `${names.join(" × ")}${suffix}`;
+};
 
 const getPreviewImage = (item: ZoraFeedItem) =>
   item.mediaContent?.previewImage?.medium ||
@@ -110,6 +132,7 @@ const ViewerAction = ({
 };
 
 interface ZoraPostMobileViewerProps {
+  collaborationByAddress?: Record<string, Every1PublicCoinCollaboration>;
   hasNextPage: boolean;
   initialIndex: number;
   isFetchingMore: boolean;
@@ -120,6 +143,7 @@ interface ZoraPostMobileViewerProps {
 }
 
 const ZoraPostMobileViewer = ({
+  collaborationByAddress = {},
   hasNextPage,
   initialIndex,
   isFetchingMore,
@@ -209,7 +233,10 @@ const ZoraPostMobileViewer = ({
         ref={containerRef}
       >
         {items.map((item, index) => {
+          const collaboration =
+            collaborationByAddress[item.address.toLowerCase()];
           const creatorName = getCreatorName(item);
+          const collaborationLabel = getCollaborationLabel(collaboration);
           const previewImage = getPreviewImage(item);
           const videoSource =
             item.mediaContent?.videoHlsUrl ||
@@ -301,9 +328,16 @@ const ZoraPostMobileViewer = ({
                     <p className="font-semibold text-[15px]">
                       {item.symbol ? `$${item.symbol}` : item.name}
                     </p>
-                    <p className="mt-1 text-[13px] text-white/80">
-                      {creatorName}
-                    </p>
+                    <div className="mt-1 flex items-center gap-2 text-[13px] text-white/80">
+                      <p className="truncate">
+                        {collaborationLabel || creatorName}
+                      </p>
+                      {collaboration ? (
+                        <span className="inline-flex shrink-0 items-center rounded-full bg-sky-500/16 px-2 py-0.5 font-semibold text-[9px] text-sky-100 ring-1 ring-sky-300/30">
+                          Collab
+                        </span>
+                      ) : null}
+                    </div>
 
                     <p className="mt-3 max-w-full overflow-hidden break-words text-[14px] text-white/90 leading-6 [-webkit-box-orient:vertical] [-webkit-line-clamp:4] [display:-webkit-box] [overflow-wrap:anywhere]">
                       {caption ? truncateByWords(caption, 34) : item.name}
@@ -326,11 +360,35 @@ const ZoraPostMobileViewer = ({
                         onClick={() => setProfileDrawerItem(item)}
                         type="button"
                       >
-                        <img
-                          alt={creatorName}
-                          className="size-12 rounded-full border-2 border-white/80 object-cover"
-                          src={getCreatorAvatar(item)}
-                        />
+                        {collaboration && collaboration.members.length > 1 ? (
+                          <div className="relative h-12 w-14">
+                            {collaboration.members
+                              .slice(0, 2)
+                              .map((member, memberIndex) => (
+                                <img
+                                  alt={
+                                    member.username ||
+                                    member.displayName ||
+                                    `Collaborator ${memberIndex + 1}`
+                                  }
+                                  className={cn(
+                                    "absolute top-0 size-12 rounded-full border-2 border-white/80 object-cover",
+                                    memberIndex === 0
+                                      ? "left-0 z-10"
+                                      : "right-0 z-20"
+                                  )}
+                                  key={member.profileId}
+                                  src={member.avatarUrl || DEFAULT_AVATAR}
+                                />
+                              ))}
+                          </div>
+                        ) : (
+                          <img
+                            alt={creatorName}
+                            className="size-12 rounded-full border-2 border-white/80 object-cover"
+                            src={getCreatorAvatar(item)}
+                          />
+                        )}
                       </button>
                       <span className="absolute -right-1 -bottom-1 flex size-5 items-center justify-center rounded-full bg-rose-500 text-white">
                         <PlusIcon className="size-3" />

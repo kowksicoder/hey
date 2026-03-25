@@ -30,13 +30,18 @@ import {
   EVERY1_COIN_CHAT_QUERY_KEY
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
+import { getPublicProfilePath } from "@/helpers/getAccount";
 import type { CoinPriceHistoryPoint } from "@/helpers/getCoinPriceHistory";
 import nFormatter from "@/helpers/nFormatter";
 import { getSupabaseClient, hasSupabaseConfig } from "@/helpers/supabase";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
 import useOpenAuth from "@/hooks/useOpenAuth";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
-import type { Every1CoinChatMessage } from "@/types/every1";
+import type {
+  Every1CoinChatMessage,
+  Every1PublicCoinCollaboration,
+  Every1PublicCollaborationMember
+} from "@/types/every1";
 
 type MobileCoinTab = "about" | "chat";
 type MobileTradeMode = "buy" | "sell";
@@ -153,6 +158,28 @@ const formatChatAuthor = (message: Every1CoinChatMessage) => {
 
 const formatChatAvatar = (message: Every1CoinChatMessage) =>
   message.authorAvatarUrl || DEFAULT_AVATAR;
+
+const formatCollaborationMemberLabel = (
+  member: Every1PublicCollaborationMember
+) => {
+  if (member.username?.trim()) {
+    return member.username.startsWith("@")
+      ? member.username
+      : `@${member.username}`;
+  }
+
+  return member.displayName?.trim() || "Collaborator";
+};
+
+const getCollaborationDisplayLabel = (
+  collaboration?: Every1PublicCoinCollaboration | null
+) =>
+  collaboration?.members
+    .slice(0, 2)
+    .map(
+      (member) => member.displayName || formatCollaborationMemberLabel(member)
+    )
+    .join(" × ") || null;
 
 const getActivityDate = (timestamp?: number | string | null) => {
   if (typeof timestamp === "number") {
@@ -342,6 +369,8 @@ interface MobileCoinViewProps {
   chatLoading?: boolean;
   chatMessages: Every1CoinChatMessage[];
   coin: NonNullable<GetCoinResponse["zora20Token"]>;
+  collaboration?: Every1PublicCoinCollaboration | null;
+  collaborationLookupComplete?: boolean;
   createdAt?: null | string;
   creatorAvatar: string;
   creatorDisplayName: string;
@@ -361,6 +390,8 @@ const MobileCoinView = ({
   chatLoading = false,
   chatMessages,
   coin,
+  collaboration = null,
+  collaborationLookupComplete = false,
   createdAt,
   creatorAvatar,
   creatorDisplayName,
@@ -389,12 +420,19 @@ const MobileCoinView = ({
   const copyAddress = useCopyToClipboard(coin.address, "Contract copied");
   const [isRealtimeReady, setIsRealtimeReady] = useState(false);
   const [liveChatterCount, setLiveChatterCount] = useState(chatterCount);
+  const hasFansCorner = collaborationLookupComplete && !collaboration;
+  const collaborationMembers = collaboration?.members || [];
+  const collaborationDisplayLabel = getCollaborationDisplayLabel(collaboration);
   const creatorUsername = creatorHandle?.trim()
     ? creatorHandle.startsWith("@")
       ? creatorHandle
       : `@${creatorHandle}`
     : creatorDisplayName;
   const openFansCorner = () => {
+    if (!hasFansCorner) {
+      return;
+    }
+
     setActiveTab("chat");
     aboutSectionRef.current?.scrollIntoView({
       behavior: "smooth",
@@ -420,7 +458,8 @@ const MobileCoinView = ({
   const marketCapValue = Number.parseFloat(coin.marketCap ?? "0");
   const volume24hValue = Number.parseFloat(coin.volume24h ?? "0");
   const totalVolumeValue = Number.parseFloat(totalVolume ?? "");
-  const canJoinFansCorner = Number.isFinite(holdingAmount) && holdingAmount > 0;
+  const canJoinFansCorner =
+    hasFansCorner && Number.isFinite(holdingAmount) && holdingAmount > 0;
   const holderIdentity =
     profile?.id || profile?.walletAddress?.trim().toLowerCase() || null;
   const price =
@@ -454,7 +493,13 @@ const MobileCoinView = ({
   }, [chatterCount]);
 
   useEffect(() => {
-    if (!hasSupabaseConfig()) {
+    if (!hasFansCorner && activeTab === "chat") {
+      setActiveTab("about");
+    }
+  }, [activeTab, hasFansCorner]);
+
+  useEffect(() => {
+    if (!hasSupabaseConfig() || !hasFansCorner) {
       return;
     }
 
@@ -515,7 +560,7 @@ const MobileCoinView = ({
       chatChannelRef.current = null;
       void supabase.removeChannel(channel);
     };
-  }, [address, holderIdentity, queryClient]);
+  }, [address, hasFansCorner, holderIdentity, queryClient]);
 
   useEffect(() => {
     const channel = chatChannelRef.current;
@@ -707,12 +752,19 @@ const MobileCoinView = ({
               <p className="truncate font-semibold text-[1.2rem] text-gray-950 leading-none dark:text-white">
                 {coin.symbol || coin.name}
               </p>
+              {collaboration ? (
+                <span className="inline-flex shrink-0 items-center rounded-full bg-sky-500/12 px-2 py-0.5 font-semibold text-[9px] text-sky-700 ring-1 ring-sky-500/20 dark:bg-sky-500/14 dark:text-sky-300 dark:ring-sky-400/20">
+                  Collab
+                </span>
+              ) : null}
               {creatorIsOfficial ? (
                 <CheckBadgeIcon className="size-3.5 text-brand-500" />
               ) : null}
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[10px] text-gray-500 dark:text-white/60">
-              <span className="truncate">{creatorUsername}</span>
+              <span className="truncate">
+                {collaborationDisplayLabel || creatorUsername}
+              </span>
               <span className="text-gray-300 dark:text-white/30">|</span>
               <button
                 className="inline-flex items-center justify-center"
@@ -835,24 +887,46 @@ const MobileCoinView = ({
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-3 py-3">
                     <div className="flex items-end gap-2.5">
-                      <Image
-                        alt={creatorDisplayName}
-                        className="size-9 rounded-full border border-white/40 object-cover"
-                        height={36}
-                        src={creatorAvatar || DEFAULT_AVATAR}
-                        width={36}
-                      />
+                      {collaborationMembers.length > 1 ? (
+                        <div className="relative h-9 w-[3.25rem]">
+                          {collaborationMembers
+                            .slice(0, 2)
+                            .map((member, index) => (
+                              <Image
+                                alt={formatCollaborationMemberLabel(member)}
+                                className={cn(
+                                  "absolute top-0 size-9 rounded-full border border-white/40 object-cover",
+                                  index === 0 ? "left-0 z-10" : "right-0 z-20"
+                                )}
+                                height={36}
+                                key={member.profileId}
+                                src={member.avatarUrl || DEFAULT_AVATAR}
+                                width={36}
+                              />
+                            ))}
+                        </div>
+                      ) : (
+                        <Image
+                          alt={creatorDisplayName}
+                          className="size-9 rounded-full border border-white/40 object-cover"
+                          height={36}
+                          src={creatorAvatar || DEFAULT_AVATAR}
+                          width={36}
+                        />
+                      )}
                       <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-1.5">
                           <p className="truncate font-semibold text-[0.95rem] text-white">
-                            {creatorDisplayName}
+                            {collaborationDisplayLabel || creatorDisplayName}
                           </p>
                           {creatorIsOfficial ? (
                             <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
                           ) : null}
                         </div>
                         <p className="truncate text-[10px] text-white/78">
-                          {creatorHandle}
+                          {collaboration
+                            ? `${collaboration.activeMemberCount} collaborators`
+                            : creatorHandle}
                         </p>
                       </div>
                     </div>
@@ -978,14 +1052,15 @@ const MobileCoinView = ({
 
         <div className="mt-3 px-3.5" ref={aboutSectionRef}>
           <div className="flex items-center gap-1.5 border-gray-200 border-b pb-0.5 dark:border-white/8">
-            {(
-              [
-                { label: "About", value: "about" },
-                {
-                  label: `Fans Corner (${nFormatter(liveChatterCount, 1) || "0"})`,
-                  value: "chat"
-                }
-              ] as const
+            {(hasFansCorner
+              ? ([
+                  { label: "About", value: "about" },
+                  {
+                    label: `Fans Corner (${nFormatter(liveChatterCount, 1) || "0"})`,
+                    value: "chat"
+                  }
+                ] as const)
+              : ([{ label: "About", value: "about" }] as const)
             ).map((tab) => (
               <button
                 className={cn(
@@ -1009,6 +1084,55 @@ const MobileCoinView = ({
 
         {activeTab === "about" ? (
           <div className="px-3.5 pt-2.5">
+            {collaboration ? (
+              <section className="mb-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-sky-500/12 px-2 py-0.5 font-semibold text-[10px] text-sky-700 ring-1 ring-sky-500/20 dark:bg-sky-500/14 dark:text-sky-300 dark:ring-sky-400/20">
+                    Collab
+                  </span>
+                  <p className="text-[11px] text-gray-500 dark:text-white/45">
+                    Shared project
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {collaborationMembers.map((member) => {
+                    const profilePath = getPublicProfilePath({
+                      address: member.walletAddress,
+                      handle: member.username
+                    });
+                    const content = (
+                      <>
+                        <Image
+                          alt={formatCollaborationMemberLabel(member)}
+                          className="size-5 rounded-full object-cover"
+                          height={20}
+                          src={member.avatarUrl || DEFAULT_AVATAR}
+                          width={20}
+                        />
+                        <span>{formatCollaborationMemberLabel(member)}</span>
+                      </>
+                    );
+
+                    return profilePath ? (
+                      <a
+                        className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-1 text-[10px] text-gray-700 ring-1 ring-gray-200 dark:bg-[#121212] dark:text-white/85 dark:ring-white/8"
+                        href={profilePath}
+                        key={member.profileId}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full bg-white px-2 py-1 text-[10px] text-gray-700 ring-1 ring-gray-200 dark:bg-[#121212] dark:text-white/85 dark:ring-white/8"
+                        key={member.profileId}
+                      >
+                        {content}
+                      </span>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
             <section>
               <p className="text-[0.88rem] text-gray-800 leading-[1.2rem] dark:text-white">
                 {showFullDescription || !shouldClampDescription
@@ -1084,19 +1208,21 @@ const MobileCoinView = ({
               <div className="mt-2.5 space-y-2.5">
                 <div className="flex items-center justify-between gap-4">
                   <p className="text-[11px] text-gray-400 dark:text-white/38">
-                    Creator
+                    {collaboration ? "Creators" : "Creator"}
                   </p>
                   <div className="min-w-0 text-right">
                     <div className="flex min-w-0 items-center justify-end gap-1.5">
                       <p className="truncate font-medium text-[12px] text-gray-950 dark:text-white">
-                        {creatorDisplayName}
+                        {collaborationDisplayLabel || creatorDisplayName}
                       </p>
                       {creatorIsOfficial ? (
                         <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
                       ) : null}
                     </div>
                     <p className="truncate text-[10px] text-gray-500 dark:text-white/45">
-                      {creatorHandle}
+                      {collaboration
+                        ? `${collaboration.activeMemberCount} collaborators`
+                        : creatorHandle}
                     </p>
                   </div>
                 </div>
@@ -1220,15 +1346,17 @@ const MobileCoinView = ({
               >
                 Buy
               </button>
-              <button
-                aria-label="Open Fans Corner"
-                className="inline-flex size-[2.125rem] items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm dark:shadow-none"
-                onClick={openFansCorner}
-                title="Open Fans Corner"
-                type="button"
-              >
-                <ChatBubbleOvalLeftEllipsisIcon className="size-4" />
-              </button>
+              {hasFansCorner ? (
+                <button
+                  aria-label="Open Fans Corner"
+                  className="inline-flex size-[2.125rem] items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm dark:shadow-none"
+                  onClick={openFansCorner}
+                  title="Open Fans Corner"
+                  type="button"
+                >
+                  <ChatBubbleOvalLeftEllipsisIcon className="size-4" />
+                </button>
+              ) : null}
             </div>
           </div>
         ) : (

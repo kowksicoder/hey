@@ -3,12 +3,17 @@ import {
   FireIcon,
   SparklesIcon
 } from "@heroicons/react/24/outline";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { setApiKey } from "@zoralabs/coins-sdk";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { EmptyState, ErrorMessage, Spinner } from "@/components/Shared/UI";
 import { HomeFeedSort, HomeFeedType, HomeFeedView } from "@/data/enums";
 import cn from "@/helpers/cn";
+import {
+  EVERY1_PUBLIC_COIN_COLLABORATIONS_QUERY_KEY,
+  listPublicCoinCollaborations,
+  listPublicCollaborationCoins
+} from "@/helpers/every1";
 import getZoraApiKey from "@/helpers/getZoraApiKey";
 import useLoadMoreOnIntersect from "@/hooks/useLoadMoreOnIntersect";
 import { useHomeTabStore } from "@/store/persisted/useHomeTabStore";
@@ -96,6 +101,53 @@ const ZoraFeed = () => {
         throw new Error("Missing Zora API key for the Zora feed.");
       }
 
+      if (feedType === HomeFeedType.COLLABORATIONS) {
+        const offset = Number.isFinite(Number(pageParam))
+          ? Number(pageParam)
+          : 0;
+        const publicCollaborationCoins = await listPublicCollaborationCoins({
+          limit: 20,
+          offset
+        });
+        const { getCoin } = await import("@zoralabs/coins-sdk");
+
+        const coinResults = await Promise.all(
+          publicCollaborationCoins.map(async (collaboration) => {
+            try {
+              const response = await getCoin({
+                address: collaboration.coinAddress as `0x${string}`,
+                chain: 8453
+              });
+              const coin = response.data?.zora20Token;
+
+              if (
+                !coin ||
+                (coin as { platformBlocked?: boolean }).platformBlocked ||
+                (coin.creatorProfile as { platformBlocked?: boolean } | null)
+                  ?.platformBlocked
+              ) {
+                return null;
+              }
+
+              return {
+                ...coin,
+                id: coin.address
+              } as ZoraFeedItem;
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        return {
+          items: coinResults.filter(Boolean) as ZoraFeedItem[],
+          nextCursor:
+            publicCollaborationCoins.length >= 20
+              ? String(offset + 20)
+              : undefined
+        };
+      }
+
       const response = await currentFeed.query({
         after: pageParam as string | undefined,
         count: 20
@@ -126,6 +178,26 @@ const ZoraFeed = () => {
         return sortMode === HomeFeedSort.OLDEST ? aTime - bTime : bTime - aTime;
       }),
     [data?.pages, sortMode]
+  );
+  const collaborationMetadataQuery = useQuery({
+    enabled: items.length > 0,
+    queryFn: async () =>
+      listPublicCoinCollaborations(items.map((item) => item.address)),
+    queryKey: [
+      EVERY1_PUBLIC_COIN_COLLABORATIONS_QUERY_KEY,
+      ...items.map((item) => item.address.toLowerCase()).sort()
+    ],
+    staleTime: 30_000
+  });
+  const collaborationByAddress = useMemo(
+    () =>
+      Object.fromEntries(
+        (collaborationMetadataQuery.data || []).map((collaboration) => [
+          collaboration.coinAddress.toLowerCase(),
+          collaboration
+        ])
+      ),
+    [collaborationMetadataQuery.data]
   );
 
   const suggestions = useMemo(() => {
@@ -200,6 +272,7 @@ const ZoraFeed = () => {
   if (shouldRenderMobileReel) {
     return (
       <ZoraPostMobileViewer
+        collaborationByAddress={collaborationByAddress}
         hasNextPage={Boolean(hasNextPage)}
         initialIndex={0}
         isFetchingMore={isFetchingNextPage}
@@ -224,6 +297,9 @@ const ZoraFeed = () => {
         {isGridView
           ? items.map((item, index) => (
               <ZoraPostCard
+                collaboration={
+                  collaborationByAddress[item.address.toLowerCase()]
+                }
                 item={item}
                 key={item.id}
                 onOpenMobileView={
@@ -235,6 +311,9 @@ const ZoraFeed = () => {
           : items.map((item, index) => (
               <Fragment key={item.id}>
                 <ZoraPostCard
+                  collaboration={
+                    collaborationByAddress[item.address.toLowerCase()]
+                  }
                   item={item}
                   onOpenMobileView={() => handleOpenMobileView(index)}
                   viewMode={viewMode}
@@ -262,6 +341,7 @@ const ZoraFeed = () => {
       </section>
 
       <ZoraPostMobileViewer
+        collaborationByAddress={collaborationByAddress}
         hasNextPage={Boolean(hasNextPage)}
         initialIndex={selectedPostIndex ?? 0}
         isFetchingMore={isFetchingNextPage}

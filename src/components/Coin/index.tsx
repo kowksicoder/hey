@@ -39,11 +39,14 @@ import {
   Tabs
 } from "@/components/Shared/UI";
 import { BASE_RPC_URL, DEFAULT_AVATAR } from "@/data/constants";
+import cn from "@/helpers/cn";
 import formatRelativeOrAbsolute from "@/helpers/datetime/formatRelativeOrAbsolute";
 import {
   EVERY1_COIN_CHAT_QUERY_KEY,
+  EVERY1_PUBLIC_COIN_COLLABORATIONS_QUERY_KEY,
   getPublicEvery1Profile,
-  listCoinChatMessages
+  listCoinChatMessages,
+  listPublicCoinCollaborations
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
 import { getPublicProfilePath } from "@/helpers/getAccount";
@@ -53,6 +56,7 @@ import getZoraApiKey from "@/helpers/getZoraApiKey";
 import nFormatter from "@/helpers/nFormatter";
 import { hasSupabaseConfig } from "@/helpers/supabase";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
+import type { Every1PublicCollaborationMember } from "@/types/every1";
 import MobileCoinView from "./MobileCoinView";
 
 type CommentNode = NonNullable<
@@ -131,6 +135,18 @@ const getCoinPreview = (
     coinWithMedia.mediaContent?.previewImage?.small ||
     undefined
   );
+};
+
+const formatCollaborationMemberLabel = (
+  member: Every1PublicCollaborationMember
+) => {
+  if (member.username?.trim()) {
+    return member.username.startsWith("@")
+      ? member.username
+      : `@${member.username}`;
+  }
+
+  return member.displayName?.trim() || "Collaborator";
 };
 
 const Coin = () => {
@@ -223,6 +239,12 @@ const Coin = () => {
       creatorQuery.data?.handle || coinRecord?.creatorProfile?.handle
     ]
   });
+  const collaborationQuery = useQuery({
+    enabled: Boolean(isValidAddress),
+    queryFn: async () =>
+      (await listPublicCoinCollaborations([normalizedAddress]))[0] ?? null,
+    queryKey: [EVERY1_PUBLIC_COIN_COLLABORATIONS_QUERY_KEY, normalizedAddress]
+  });
 
   const commentsQuery = useQuery({
     enabled: Boolean(isValidAddress),
@@ -247,7 +269,11 @@ const Coin = () => {
     refetchInterval: 15000
   });
   const coinChatQuery = useQuery({
-    enabled: hasSupabaseConfig() && Boolean(isValidAddress),
+    enabled:
+      hasSupabaseConfig() &&
+      Boolean(isValidAddress) &&
+      collaborationQuery.isFetched &&
+      !collaborationQuery.data,
     queryFn: async () =>
       listCoinChatMessages({
         coinAddress: normalizedAddress,
@@ -322,6 +348,13 @@ const Coin = () => {
     creatorHandle;
   const creatorIsOfficial =
     creatorEvery1ProfileQuery.data?.verificationStatus === "verified";
+  const collaboration = collaborationQuery.data;
+  const collaborationLookupComplete = collaborationQuery.isFetched;
+  const collaborationMembers = useMemo(
+    () => collaboration?.members || [],
+    [collaboration]
+  );
+  const hasFansCorner = collaborationLookupComplete && !collaboration;
   const comments = commentsQuery.data?.comments ?? [];
   const commentCount = commentsQuery.data?.count ?? 0;
   const chatMessages = coinChatQuery.data ?? [];
@@ -341,6 +374,18 @@ const Coin = () => {
     coin?.address ?? "",
     "Coin address copied"
   );
+  const collaborationDisplayName = useMemo(() => {
+    if (!collaborationMembers.length) {
+      return null;
+    }
+
+    return collaborationMembers
+      .slice(0, 2)
+      .map(
+        (member) => member.displayName || formatCollaborationMemberLabel(member)
+      )
+      .join(" × ");
+  }, [collaborationMembers]);
 
   const detailCards = coin
     ? [
@@ -641,6 +686,8 @@ const Coin = () => {
                   chatMessages={chatMessages}
                   chatterCount={chatterCount}
                   coin={coin}
+                  collaboration={collaboration}
+                  collaborationLookupComplete={collaborationLookupComplete}
                   createdAt={coinRecord?.createdAt}
                   creatorAvatar={creatorAvatar}
                   creatorDisplayName={creatorDisplayName}
@@ -678,12 +725,14 @@ const Coin = () => {
 
                       <div className="absolute inset-x-0 bottom-2.5 flex justify-center">
                         <div className="flex items-center gap-1 rounded-[0.8rem] border border-white/70 bg-white/90 p-1 shadow-sm backdrop-blur dark:border-gray-800/80 dark:bg-black/80">
-                          <button
-                            className="flex size-7.5 items-center justify-center rounded-[0.7rem] text-gray-500 transition-colors hover:text-gray-950 dark:text-gray-400 dark:hover:text-gray-50"
-                            type="button"
-                          >
-                            <ChatBubbleOvalLeftEllipsisIcon className="size-3.5" />
-                          </button>
+                          {hasFansCorner ? (
+                            <button
+                              className="flex size-7.5 items-center justify-center rounded-[0.7rem] text-gray-500 transition-colors hover:text-gray-950 dark:text-gray-400 dark:hover:text-gray-50"
+                              type="button"
+                            >
+                              <ChatBubbleOvalLeftEllipsisIcon className="size-3.5" />
+                            </button>
+                          ) : null}
                           <button
                             className="flex size-7.5 items-center justify-center rounded-[0.7rem] text-gray-500 transition-colors hover:text-gray-950 dark:text-gray-400 dark:hover:text-gray-50"
                             type="button"
@@ -697,17 +746,39 @@ const Coin = () => {
                     <div className="flex h-[27rem] flex-col rounded-[1.5rem] border border-gray-200 bg-white px-3.5 py-3.5 xl:h-[28.5rem] dark:border-gray-800 dark:bg-black">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-center gap-2.5">
-                          <Image
-                            alt={creatorHandle}
-                            className="size-7.5 rounded-full object-cover"
-                            height={30}
-                            src={creatorAvatar}
-                            width={30}
-                          />
+                          {collaborationMembers.length > 1 ? (
+                            <div className="relative h-7.5 w-11 shrink-0">
+                              {collaborationMembers
+                                .slice(0, 2)
+                                .map((member, index) => (
+                                  <Image
+                                    alt={formatCollaborationMemberLabel(member)}
+                                    className={cn(
+                                      "absolute top-0 size-7.5 rounded-full border border-white object-cover dark:border-black",
+                                      index === 0
+                                        ? "left-0 z-10"
+                                        : "right-0 z-20"
+                                    )}
+                                    height={30}
+                                    key={member.profileId}
+                                    src={member.avatarUrl || DEFAULT_AVATAR}
+                                    width={30}
+                                  />
+                                ))}
+                            </div>
+                          ) : (
+                            <Image
+                              alt={creatorHandle}
+                              className="size-7.5 rounded-full object-cover"
+                              height={30}
+                              src={creatorAvatar}
+                              width={30}
+                            />
+                          )}
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-1.5">
                               <p className="truncate font-semibold text-[13px] text-gray-950 dark:text-gray-50">
-                                {creatorDisplayName}
+                                {collaborationDisplayName || creatorDisplayName}
                               </p>
                               {creatorIsOfficial ? (
                                 <CheckBadgeIcon className="size-4 shrink-0 text-brand-500" />
@@ -715,7 +786,9 @@ const Coin = () => {
                             </div>
                             <div className="mt-0.5 flex items-center gap-1">
                               <p className="truncate text-[10px] text-gray-500 dark:text-gray-400">
-                                {creatorHandle}
+                                {collaboration
+                                  ? `${collaboration.activeMemberCount} collaborators`
+                                  : creatorHandle}
                               </p>
                             </div>
                           </div>
@@ -731,6 +804,50 @@ const Coin = () => {
                       <h1 className="mt-2.5 font-semibold text-[1.5rem] text-gray-950 leading-[0.94] tracking-tight xl:text-[1.7rem] dark:text-gray-50">
                         {coin.name}
                       </h1>
+                      {collaboration ? (
+                        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                          <span className="inline-flex items-center rounded-full bg-sky-500/12 px-2.5 py-1 font-semibold text-[10px] text-sky-700 ring-1 ring-sky-500/20 dark:bg-sky-500/14 dark:text-sky-300 dark:ring-sky-400/20">
+                            Collab
+                          </span>
+                          {collaborationMembers.map((member) => {
+                            const profilePath = getPublicProfilePath({
+                              address: member.walletAddress,
+                              handle: member.username
+                            });
+                            const content = (
+                              <>
+                                <Image
+                                  alt={formatCollaborationMemberLabel(member)}
+                                  className="size-5 rounded-full object-cover"
+                                  height={20}
+                                  src={member.avatarUrl || DEFAULT_AVATAR}
+                                  width={20}
+                                />
+                                <span>
+                                  {formatCollaborationMemberLabel(member)}
+                                </span>
+                              </>
+                            );
+
+                            return profilePath ? (
+                              <a
+                                className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2 py-1 font-medium text-[10px] text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                                href={profilePath}
+                                key={member.profileId}
+                              >
+                                {content}
+                              </a>
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2 py-1 font-medium text-[10px] text-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                key={member.profileId}
+                              >
+                                {content}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : null}
 
                       <div className="mt-2.5 grid grid-cols-3 overflow-hidden rounded-[0.9rem] border border-gray-200 dark:border-gray-800">
                         {detailCards.map((card) => (

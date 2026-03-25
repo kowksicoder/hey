@@ -18,6 +18,7 @@ import formatAddress from "@/helpers/formatAddress";
 import getCoinPath from "@/helpers/getCoinPath";
 import nFormatter from "@/helpers/nFormatter";
 import truncateByWords from "@/helpers/truncateByWords";
+import type { Every1PublicCoinCollaboration } from "@/types/every1";
 import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 
 const formatUsdMetric = (value?: string) => {
@@ -56,6 +57,36 @@ const getCreatorName = (item: ZoraFeedItem) => {
 
 const getCreatorAvatar = (item: ZoraFeedItem) =>
   item.creatorProfile?.avatar?.previewImage?.medium || DEFAULT_AVATAR;
+
+const getCollaborationMembers = (
+  collaboration?: Every1PublicCoinCollaboration | null
+) => collaboration?.members.slice(0, 2) || [];
+
+const getCollaborationLabel = (
+  collaboration?: Every1PublicCoinCollaboration | null
+) => {
+  const names =
+    collaboration?.members
+      .slice(0, 2)
+      .map(
+        (member) =>
+          member.username?.trim() ||
+          member.displayName?.trim() ||
+          "Collaborator"
+      )
+      .filter(Boolean) || [];
+
+  if (!names.length) {
+    return null;
+  }
+
+  const suffix =
+    collaboration && collaboration.activeMemberCount > names.length
+      ? ` +${collaboration.activeMemberCount - names.length}`
+      : "";
+
+  return `${names.join(" × ")}${suffix}`;
+};
 
 const getPreviewImage = (item: ZoraFeedItem) =>
   item.mediaContent?.previewImage?.medium ||
@@ -188,10 +219,12 @@ const ActionButton = ({
 );
 
 const ZoraPostCard = ({
+  collaboration,
   item,
   onOpenMobileView,
   viewMode = HomeFeedView.LIST
 }: {
+  collaboration?: Every1PublicCoinCollaboration | null;
   item: ZoraFeedItem;
   onOpenMobileView?: () => void;
   viewMode?: HomeFeedView;
@@ -202,6 +235,8 @@ const ZoraPostCard = ({
   const delta = Number.parseFloat(item.marketCapDelta24h ?? "0");
   const isPositive = delta >= 0;
   const creatorName = getCreatorName(item);
+  const collaborationLabel = getCollaborationLabel(collaboration);
+  const visibleCollaborationMembers = getCollaborationMembers(collaboration);
   const timestamp = item.createdAt
     ? formatPostTimestamp(item.createdAt)
     : formatAddress(item.address);
@@ -245,16 +280,46 @@ const ZoraPostCard = ({
               isGridView ? "gap-2" : "gap-3"
             )}
           >
-            <Image
-              alt={creatorName}
-              className={cn(
-                "shrink-0 rounded-full border border-white object-cover ring-1 ring-gray-300/90 ring-offset-1 ring-offset-white dark:border-black dark:ring-gray-700 dark:ring-offset-black",
-                isGridView ? "size-5 md:size-[1.375rem]" : "size-11"
-              )}
-              height={isGridView ? 20 : 44}
-              src={getCreatorAvatar(item)}
-              width={isGridView ? 20 : 44}
-            />
+            {visibleCollaborationMembers.length > 1 ? (
+              <div
+                className={cn(
+                  "relative shrink-0",
+                  isGridView
+                    ? "h-5 w-8 md:h-[1.375rem] md:w-9"
+                    : "h-11 w-[4.1rem]"
+                )}
+              >
+                {visibleCollaborationMembers.map((member, index) => (
+                  <Image
+                    alt={
+                      member.username ||
+                      member.displayName ||
+                      `Collaborator ${index + 1}`
+                    }
+                    className={cn(
+                      "absolute top-0 rounded-full border border-white object-cover ring-1 ring-gray-300/90 ring-offset-1 ring-offset-white dark:border-black dark:ring-gray-700 dark:ring-offset-black",
+                      isGridView ? "size-5 md:size-[1.375rem]" : "size-11",
+                      index === 0 ? "left-0 z-10" : "right-0 z-20"
+                    )}
+                    height={isGridView ? 20 : 44}
+                    key={member.profileId}
+                    src={member.avatarUrl || DEFAULT_AVATAR}
+                    width={isGridView ? 20 : 44}
+                  />
+                ))}
+              </div>
+            ) : (
+              <Image
+                alt={creatorName}
+                className={cn(
+                  "shrink-0 rounded-full border border-white object-cover ring-1 ring-gray-300/90 ring-offset-1 ring-offset-white dark:border-black dark:ring-gray-700 dark:ring-offset-black",
+                  isGridView ? "size-5 md:size-[1.375rem]" : "size-11"
+                )}
+                height={isGridView ? 20 : 44}
+                src={getCreatorAvatar(item)}
+                width={isGridView ? 20 : 44}
+              />
+            )}
             <div className="min-w-0">
               <div className="flex min-w-0 items-center gap-2">
                 <button
@@ -267,6 +332,11 @@ const ZoraPostCard = ({
                 >
                   {item.symbol ? `$${item.symbol}` : "Coin"}
                 </button>
+                {collaboration ? (
+                  <span className="inline-flex shrink-0 items-center rounded-full bg-sky-500/12 px-2 py-0.5 font-semibold text-[9px] text-sky-700 ring-1 ring-sky-500/20 dark:bg-sky-500/14 dark:text-sky-300 dark:ring-sky-400/20">
+                    Collab
+                  </span>
+                ) : null}
                 {isGridView ? null : (
                   <span
                     className={cn(
@@ -287,6 +357,12 @@ const ZoraPostCard = ({
                     "text-[11px]"
                   )}
                 >
+                  <span className="truncate">
+                    {collaborationLabel || creatorName}
+                  </span>
+                  <span className="mx-1.5 text-gray-300 dark:text-gray-600">
+                    •
+                  </span>
                   <span className="truncate">{timestamp}</span>
                 </div>
               )}
@@ -355,6 +431,11 @@ const ZoraPostCard = ({
       {isGridView ? (
         <div className="px-2 pb-1.5 md:px-2.5 md:pb-2">
           <div className="flex items-center gap-1.5 font-semibold text-[9px] text-gray-500 dark:text-gray-400">
+            {collaboration ? (
+              <span className="inline-flex items-center justify-center rounded-full bg-sky-500/12 px-1.5 py-0.75 text-sky-700 dark:bg-sky-500/14 dark:text-sky-300">
+                Collab
+              </span>
+            ) : null}
             <span className="inline-flex items-center justify-center rounded-full bg-gray-100 px-1.5 py-0.75 md:px-1.5 md:py-0.75 dark:bg-gray-900">
               MC {formatUsdMetric(item.marketCap)}
             </span>
@@ -464,7 +545,7 @@ const ZoraPostCard = ({
         <div className="min-w-0 max-w-full px-4 pb-4 md:hidden">
           <div className="max-w-full overflow-hidden break-all text-[13px] text-gray-600 leading-5 dark:text-gray-300">
             <span className="mr-1 font-semibold text-gray-950 dark:text-gray-50">
-              {creatorName}
+              {collaborationLabel || creatorName}
             </span>
             <span className="[-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box]">
               {caption ? truncateByWords(caption, 24) : item.name}

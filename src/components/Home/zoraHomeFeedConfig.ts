@@ -95,6 +95,12 @@ export const zoraHomeFeedConfig: Record<HomeFeedType, ZoraHomeFeedConfigItem> =
       label: "Communities",
       query: getCoinsLastTraded
     },
+    [HomeFeedType.COLLABORATIONS]: {
+      emptyMessage: "No collaboration coins are live yet!",
+      errorTitle: "Failed to load collaboration coins",
+      label: "Collaboration",
+      query: getExploreNewAll
+    },
     [HomeFeedType.COMEDIANS]: {
       emptyMessage: "No comedian creator posts yet!",
       errorTitle: "Failed to load comedian creator posts",

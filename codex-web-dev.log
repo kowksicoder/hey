@@ -1,0 +1,76 @@
+
+> hey@0.0.0 dev C:\Users\MIKKI\3D Objects\hey\hey
+> vite dev --port 4783
+
+
+  [32m[1mVITE[22m v7.3.1[39m  [2mready in [0m[1m6406[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m4783[22m/[39m
+[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m4:42:08 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:43:41 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:44:13 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:46:07 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:46:07 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:49:27 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:50:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:56:45 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:58:02 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:58:15 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m4:59:32 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:02:11 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:03:23 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:04:31 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:05:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:17:56 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:20:30 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:21:09 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:22:12 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:24:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:51:05 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:51:35 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:51:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:52:06 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:52:20 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:52:48 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:53:03 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:53:11 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:54:41 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:54:47 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:54:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:54:59 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:55:08 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:56:52 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:57:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:57:25 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:57:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:58:00 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:58:13 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:58:17 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:58:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:59:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m5:59:55 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:02:34 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:03:16 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:03:45 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:04:32 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:04:39 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:05:32 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:05:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:06:26 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:07:25 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:07:51 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:08:44 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:08:50 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:08:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:08:57 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:10:11 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:14:25 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:27:04 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:27:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:28:10 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:28:18 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:28:42 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:29:40 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
+[2m6:30:06 AM[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Swap/index.tsx, /src/styles.css, /src/styles.css?direct[22m
