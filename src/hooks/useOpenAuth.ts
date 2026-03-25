@@ -8,16 +8,27 @@ const useOpenAuth = () => {
 
   return useCallback(
     async (trackingEvent?: string) => {
-      if (trackingEvent) {
-        umami.track(trackingEvent);
-      }
-
       if (!hasPrivyConfig()) {
         toast.error("Authentication is not configured yet");
         return;
       }
 
-      await login({ loginMethods: ["email", "wallet"] });
+      if (trackingEvent && typeof umami !== "undefined") {
+        try {
+          umami.track(trackingEvent);
+        } catch (error) {
+          console.error("Failed to track auth event", error);
+        }
+      }
+
+      try {
+        await login({ loginMethods: ["email", "wallet"] });
+      } catch (error) {
+        console.error("Failed to open auth flow", error);
+        toast.error("Couldn't open sign in", {
+          description: "Please try again in a moment."
+        });
+      }
     },
     [login]
   );
