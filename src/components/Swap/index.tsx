@@ -781,7 +781,7 @@ const Swap = () => {
       (fiatQuote
         ? "Secure quote ready"
         : fromIsEth
-          ? `Get a secure quote for ${activeCoin.symbol}.`
+          ? ""
           : "See your estimated Naira return.")
     : quoteNgnValue > 0
       ? `Approx. ${formatNgn(quoteNgnValue)}`
