@@ -2,7 +2,6 @@ import { NoSymbolIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Navigate, useLocation, useParams } from "react-router";
-import NewPost from "@/components/Composer/NewPost";
 import Custom404 from "@/components/Shared/404";
 import Custom500 from "@/components/Shared/500";
 import PageLayout from "@/components/Shared/PageLayout";
@@ -225,11 +224,6 @@ const ViewAccount = () => {
             showCollaborations={Boolean(accountProfileId)}
             showFanDrops={Boolean(accountProfileId)}
           />
-          {currentAccount?.address === account?.address &&
-          (feedType === AccountFeedType.Feed ||
-            feedType === AccountFeedType.Media) ? (
-            <NewPost />
-          ) : null}
           {(feedType === AccountFeedType.Feed ||
             feedType === AccountFeedType.Media) && (
             <AccountFeed
