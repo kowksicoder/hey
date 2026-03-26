@@ -1,0 +1,29 @@
+{
+  "accountAssociation": {
+    "header": "",
+    "payload": "",
+    "signature": ""
+  },
+  "baseBuilder": {
+    "allowedAddresses": []
+  },
+  "miniapp": {
+    "version": "1",
+    "name": "Every1",
+    "subtitle": "Trade creator coins with Naira",
+    "description": "Every1 is a creator-first social app for profiles, creator coins, communities, and Naira-first trading.",
+    "tagline": "Trade creator coins with Naira",
+    "iconUrl": "https://every1-app.onrender.com/icon-512.png",
+    "heroImageUrl": "https://every1-app.onrender.com/buycoin.png",
+    "imageUrl": "https://every1-app.onrender.com/buycoin.png",
+    "homeUrl": "https://every1-app.onrender.com",
+    "splashImageUrl": "https://every1-app.onrender.com/icon-512.png",
+    "splashBackgroundColor": "#08090b",
+    "primaryCategory": "social",
+    "tags": ["creators", "social", "trading"],
+    "ogTitle": "Every1",
+    "ogDescription": "Trade creator coins, follow creators, and join communities on Every1.",
+    "ogImageUrl": "https://every1-app.onrender.com/buycoin.png",
+    "canonicalDomain": "every1-app.onrender.com"
+  }
+}
