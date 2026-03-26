@@ -1,4 +1,8 @@
-import { BackspaceIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowLeftIcon,
+  BackspaceIcon,
+  ChevronDownIcon
+} from "@heroicons/react/24/outline";
 import { useQueryClient } from "@tanstack/react-query";
 import type { GetCoinResponse } from "@zoralabs/coins-sdk";
 import {
@@ -893,6 +897,19 @@ const Trade = ({
       <>
         <div className="flex h-full flex-col bg-white text-gray-950 dark:bg-[#111111] dark:text-white">
           <div className="px-3.5 pt-3 pb-2">
+            <div className="mb-2 flex items-center justify-between">
+              <button
+                className="inline-flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-700 dark:bg-white/6 dark:text-white/80"
+                onClick={() => onClose?.()}
+                type="button"
+              >
+                <ArrowLeftIcon className="size-4" />
+              </button>
+              <p className="font-semibold text-[11px] text-gray-500 uppercase tracking-[0.12em] dark:text-white/45">
+                Trade
+              </p>
+              <span className="size-8" />
+            </div>
             <div className="flex items-center justify-between gap-2.5">
               <div className="flex min-w-0 items-center gap-2.5">
                 <Image

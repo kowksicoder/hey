@@ -605,8 +605,7 @@ const MobileCoinView = ({
     profile?.walletAddress
   ]);
   const descriptionText =
-    description?.trim() ||
-    `${coin.name} is live on Every1. Track the price and trade anytime.`;
+    description?.trim() || `${coin.name} is live on Every1.`;
   const coverImage =
     coin.mediaContent?.previewImage?.medium ||
     coin.mediaContent?.previewImage?.small ||
@@ -1137,7 +1136,7 @@ const MobileCoinView = ({
               </section>
             ) : null}
             <section>
-              <p className="text-[0.88rem] text-gray-800 leading-[1.2rem] dark:text-white">
+              <p className="text-[12px] text-gray-700 leading-[1.05rem] dark:text-white/88">
                 {showFullDescription || !shouldClampDescription
                   ? descriptionText
                   : `${descriptionText.slice(0, 110).trim()}...`}
@@ -1153,18 +1152,18 @@ const MobileCoinView = ({
               ) : null}
             </section>
 
-            <section className="mt-4 overflow-hidden rounded-[1rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+            <section className="mt-3 overflow-hidden rounded-[0.95rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
               <button
-                className="flex w-full items-center justify-between px-3.5 py-3 text-left"
+                className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
                 onClick={() => setShowStatsDetails((value) => !value)}
                 type="button"
               >
-                <div>
-                  <h2 className="font-semibold text-[1rem] text-gray-950 dark:text-white">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h2 className="font-semibold text-[0.9rem] text-gray-950 dark:text-white">
                     Stats
                   </h2>
-                  <p className="mt-0.5 text-[11px] text-gray-500 dark:text-white/45">
-                    Tap to view coin metrics
+                  <p className="truncate text-[10px] text-gray-500 dark:text-white/45">
+                    View coin metrics
                   </p>
                 </div>
                 <ChevronDownIcon
@@ -1226,18 +1225,18 @@ const MobileCoinView = ({
               ) : null}
             </section>
 
-            <section className="mt-4 overflow-hidden rounded-[1rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+            <section className="mt-3 overflow-hidden rounded-[0.95rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
               <button
-                className="flex w-full items-center justify-between px-3.5 py-3 text-left"
+                className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
                 onClick={() => setShowContractDetails((value) => !value)}
                 type="button"
               >
-                <div>
-                  <h2 className="font-semibold text-[1rem] text-gray-950 dark:text-white">
+                <div className="flex min-w-0 items-center gap-2">
+                  <h2 className="font-semibold text-[0.9rem] text-gray-950 dark:text-white">
                     Contract
                   </h2>
-                  <p className="mt-0.5 text-[11px] text-gray-500 dark:text-white/45">
-                    Tap to view creator and chain details
+                  <p className="truncate text-[10px] text-gray-500 dark:text-white/45">
+                    View creator and chain
                   </p>
                 </div>
                 <ChevronDownIcon
@@ -1406,37 +1405,32 @@ const MobileCoinView = ({
             </div>
           </div>
         ) : (
-          <div className="pointer-events-auto rounded-[1rem] border border-gray-200/80 bg-white/88 p-2 shadow-[0_10px_28px_-20px_rgba(15,23,42,0.35)] backdrop-blur-xl dark:border-white/8 dark:bg-[#090909]/88 dark:shadow-[0_10px_28px_-20px_rgba(0,0,0,0.95)]">
-            <div className="space-y-2">
+          <div className="pointer-events-auto rounded-[0.95rem] border border-gray-200/80 bg-white/88 p-1.5 shadow-[0_10px_28px_-20px_rgba(15,23,42,0.35)] backdrop-blur-xl dark:border-white/8 dark:bg-[#090909]/88 dark:shadow-[0_10px_28px_-20px_rgba(0,0,0,0.95)]">
+            <div className="space-y-1.5">
               <button
-                className="flex h-[2.125rem] w-full items-center justify-center rounded-[0.8rem] bg-[#10B981] font-semibold text-[11px] text-black shadow-sm dark:shadow-none"
+                className="flex h-8 w-full items-center justify-center rounded-[0.75rem] bg-[#10B981] font-semibold text-[10px] text-black shadow-sm dark:shadow-none"
                 onClick={() => setTradeMode("buy")}
                 type="button"
               >
                 Buy
               </button>
-              {canJoinFansCorner ? null : (
-                <p className="px-0.5 text-[10px] text-gray-500 dark:text-white/48">
-                  Hold {coin.symbol || coin.name} to chat in Fans Corner.
-                </p>
-              )}
 
               <form
-                className="flex items-center gap-2 rounded-[0.9rem] border border-gray-200 bg-white/92 px-2.5 py-2 dark:border-white/8 dark:bg-[#141414]/94"
+                className="flex items-center gap-1.5 rounded-[0.78rem] bg-gray-100/92 px-2 py-1.5 dark:bg-[#141414]/94"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void handleSubmitChat();
                 }}
               >
                 <input
-                  className="w-full bg-transparent text-[11px] text-gray-950 outline-hidden placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
+                  className="w-full bg-transparent text-[10px] text-gray-950 outline-hidden placeholder:text-gray-400 dark:text-white dark:placeholder:text-white/35"
                   onChange={(event) => setChatDraft(event.target.value)}
                   placeholder={chatInputPlaceholder}
                   readOnly={!canJoinFansCorner}
                   value={chatDraft}
                 />
                 <button
-                  className="inline-flex size-7 items-center justify-center rounded-full bg-[#10B981] text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex size-6 items-center justify-center rounded-full bg-[#10B981] text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={
                     sendChatMutation.isPending ||
                     !canJoinFansCorner ||
@@ -1447,7 +1441,7 @@ const MobileCoinView = ({
                   {sendChatMutation.isPending ? (
                     <Spinner size="xs" />
                   ) : (
-                    <PaperAirplaneIcon className="size-3.5" />
+                    <PaperAirplaneIcon className="size-3" />
                   )}
                 </button>
               </form>
