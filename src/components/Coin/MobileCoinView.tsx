@@ -8,6 +8,7 @@ import {
   ArrowLeftIcon,
   ArrowTopRightOnSquareIcon,
   ChatBubbleOvalLeftEllipsisIcon,
+  ChevronDownIcon,
   ClipboardDocumentIcon,
   PaperAirplaneIcon,
   ShareIcon
@@ -410,6 +411,8 @@ const MobileCoinView = ({
   const [activeTab, setActiveTab] = useState<MobileCoinTab>("about");
   const [activeRange, setActiveRange] = useState<ChartRange>("6H");
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [showContractDetails, setShowContractDetails] = useState(false);
+  const [showStatsDetails, setShowStatsDetails] = useState(false);
   const [chatDraft, setChatDraft] = useState("");
   const [tradeMode, setTradeMode] = useState<MobileTradeMode | null>(null);
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
@@ -1150,127 +1153,170 @@ const MobileCoinView = ({
               ) : null}
             </section>
 
-            <section className="mt-4">
-              <h2 className="font-semibold text-[1.05rem] text-gray-950 dark:text-white">
-                Stats
-              </h2>
-              <div className="mt-2.5 space-y-2.5">
-                {[
-                  { label: "Age", value: formatAgeLong(createdAt) },
-                  {
-                    label: "Total Supply",
-                    value:
-                      Number.isFinite(totalSupplyValue) && totalSupplyValue > 0
-                        ? nFormatter(totalSupplyValue, 2)
-                        : "-"
-                  },
-                  {
-                    label: "Fully diluted valuation",
-                    value: formatUsdMetric(marketCapValue)
-                  },
-                  { label: "Liquidity", value: "-" },
-                  {
-                    label: "Market Cap",
-                    value: formatUsdMetric(marketCapValue)
-                  },
-                  {
-                    label: "Volume 24h",
-                    value: formatUsdMetric(volume24hValue)
-                  },
-                  {
-                    label: "Total volume",
-                    value: formatUsdMetric(
-                      Number.isFinite(totalVolumeValue)
-                        ? totalVolumeValue
-                        : volume24hValue
-                    )
-                  }
-                ].map((row) => (
-                  <div
-                    className="flex items-center justify-between gap-4"
-                    key={row.label}
-                  >
-                    <p className="text-[11px] text-gray-400 dark:text-white/38">
-                      {row.label}
-                    </p>
-                    <p className="text-right font-medium text-[12px] text-gray-950 dark:text-white">
-                      {row.value}
-                    </p>
+            <section className="mt-4 overflow-hidden rounded-[1rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+              <button
+                className="flex w-full items-center justify-between px-3.5 py-3 text-left"
+                onClick={() => setShowStatsDetails((value) => !value)}
+                type="button"
+              >
+                <div>
+                  <h2 className="font-semibold text-[1rem] text-gray-950 dark:text-white">
+                    Stats
+                  </h2>
+                  <p className="mt-0.5 text-[11px] text-gray-500 dark:text-white/45">
+                    Tap to view coin metrics
+                  </p>
+                </div>
+                <ChevronDownIcon
+                  className={cn(
+                    "size-4 text-gray-500 transition-transform dark:text-white/55",
+                    showStatsDetails && "rotate-180"
+                  )}
+                />
+              </button>
+              {showStatsDetails ? (
+                <div className="border-gray-200 border-t px-3.5 py-3 dark:border-white/8">
+                  <div className="space-y-2.5">
+                    {[
+                      { label: "Age", value: formatAgeLong(createdAt) },
+                      {
+                        label: "Total Supply",
+                        value:
+                          Number.isFinite(totalSupplyValue) &&
+                          totalSupplyValue > 0
+                            ? nFormatter(totalSupplyValue, 2)
+                            : "-"
+                      },
+                      {
+                        label: "Fully diluted valuation",
+                        value: formatUsdMetric(marketCapValue)
+                      },
+                      { label: "Liquidity", value: "-" },
+                      {
+                        label: "Market Cap",
+                        value: formatUsdMetric(marketCapValue)
+                      },
+                      {
+                        label: "Volume 24h",
+                        value: formatUsdMetric(volume24hValue)
+                      },
+                      {
+                        label: "Total volume",
+                        value: formatUsdMetric(
+                          Number.isFinite(totalVolumeValue)
+                            ? totalVolumeValue
+                            : volume24hValue
+                        )
+                      }
+                    ].map((row) => (
+                      <div
+                        className="flex items-center justify-between gap-4"
+                        key={row.label}
+                      >
+                        <p className="text-[11px] text-gray-400 dark:text-white/38">
+                          {row.label}
+                        </p>
+                        <p className="text-right font-medium text-[12px] text-gray-950 dark:text-white">
+                          {row.value}
+                        </p>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : null}
             </section>
 
-            <section className="mt-4">
-              <h2 className="font-semibold text-[1.05rem] text-gray-950 dark:text-white">
-                Contract
-              </h2>
-              <div className="mt-2.5 space-y-2.5">
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-[11px] text-gray-400 dark:text-white/38">
-                    {collaboration ? "Creators" : "Creator"}
+            <section className="mt-4 overflow-hidden rounded-[1rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+              <button
+                className="flex w-full items-center justify-between px-3.5 py-3 text-left"
+                onClick={() => setShowContractDetails((value) => !value)}
+                type="button"
+              >
+                <div>
+                  <h2 className="font-semibold text-[1rem] text-gray-950 dark:text-white">
+                    Contract
+                  </h2>
+                  <p className="mt-0.5 text-[11px] text-gray-500 dark:text-white/45">
+                    Tap to view creator and chain details
                   </p>
-                  <div className="min-w-0 text-right">
-                    <div className="flex min-w-0 items-center justify-end gap-1.5">
-                      <p className="truncate font-medium text-[12px] text-gray-950 dark:text-white">
-                        {collaborationDisplayLabel || creatorDisplayName}
+                </div>
+                <ChevronDownIcon
+                  className={cn(
+                    "size-4 text-gray-500 transition-transform dark:text-white/55",
+                    showContractDetails && "rotate-180"
+                  )}
+                />
+              </button>
+              {showContractDetails ? (
+                <div className="border-gray-200 border-t px-3.5 py-3 dark:border-white/8">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-[11px] text-gray-400 dark:text-white/38">
+                        {collaboration ? "Creators" : "Creator"}
                       </p>
-                      {creatorIsOfficial ? (
-                        <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
-                      ) : null}
+                      <div className="min-w-0 text-right">
+                        <div className="flex min-w-0 items-center justify-end gap-1.5">
+                          <p className="truncate font-medium text-[12px] text-gray-950 dark:text-white">
+                            {collaborationDisplayLabel || creatorDisplayName}
+                          </p>
+                          {creatorIsOfficial ? (
+                            <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
+                          ) : null}
+                        </div>
+                        <p className="truncate text-[10px] text-gray-500 dark:text-white/45">
+                          {collaboration
+                            ? `${collaboration.activeMemberCount} collaborators`
+                            : creatorHandle}
+                        </p>
+                      </div>
                     </div>
-                    <p className="truncate text-[10px] text-gray-500 dark:text-white/45">
-                      {collaboration
-                        ? `${collaboration.activeMemberCount} collaborators`
-                        : creatorHandle}
-                    </p>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-[11px] text-gray-400 dark:text-white/38">
+                        Chain
+                      </p>
+                      <p className="font-medium text-[12px] text-gray-950 dark:text-white">
+                        Base
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-[11px] text-gray-400 dark:text-white/38">
+                        Contract address
+                      </p>
+                      <button
+                        className="inline-flex items-center gap-1 font-medium text-[12px] text-gray-950 dark:text-white"
+                        onClick={copyAddress}
+                        type="button"
+                      >
+                        <span>
+                          {formatAddress(coin.address, 4).replace("…", "...")}
+                        </span>
+                        <ClipboardDocumentIcon className="size-3" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <button
+                        className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1.5 text-[10px] text-gray-700 dark:bg-white/[0.06] dark:text-white/85"
+                        onClick={() =>
+                          window.open(
+                            `https://basescan.org/address/${coin.address}`,
+                            "_blank"
+                          )
+                        }
+                        type="button"
+                      >
+                        <ArrowTopRightOnSquareIcon className="size-3" />
+                        Basescan
+                      </button>
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1.5 text-[10px] text-gray-700 dark:bg-[#111827] dark:text-white/85">
+                        Zora coin
+                      </span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-[11px] text-gray-400 dark:text-white/38">
-                    Chain
-                  </p>
-                  <p className="font-medium text-[12px] text-gray-950 dark:text-white">
-                    Base
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between gap-4">
-                  <p className="text-[11px] text-gray-400 dark:text-white/38">
-                    Contract address
-                  </p>
-                  <button
-                    className="inline-flex items-center gap-1 font-medium text-[12px] text-gray-950 dark:text-white"
-                    onClick={copyAddress}
-                    type="button"
-                  >
-                    <span>
-                      {formatAddress(coin.address, 4).replace("…", "...")}
-                    </span>
-                    <ClipboardDocumentIcon className="size-3" />
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  <button
-                    className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1.5 text-[10px] text-gray-700 dark:bg-white/[0.06] dark:text-white/85"
-                    onClick={() =>
-                      window.open(
-                        `https://basescan.org/address/${coin.address}`,
-                        "_blank"
-                      )
-                    }
-                    type="button"
-                  >
-                    <ArrowTopRightOnSquareIcon className="size-3" />
-                    Basescan
-                  </button>
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1.5 text-[10px] text-gray-700 dark:bg-[#111827] dark:text-white/85">
-                    Zora coin
-                  </span>
-                </div>
-              </div>
+              ) : null}
             </section>
           </div>
         ) : (

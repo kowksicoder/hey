@@ -1,8 +1,4 @@
-import {
-  BackspaceIcon,
-  ChevronDownIcon,
-  Cog6ToothIcon
-} from "@heroicons/react/24/outline";
+import { BackspaceIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import { useQueryClient } from "@tanstack/react-query";
 import type { GetCoinResponse } from "@zoralabs/coins-sdk";
 import {
@@ -153,6 +149,12 @@ const Trade = ({
   useEffect(() => {
     setMode(initialMode);
   }, [initialMode]);
+
+  useEffect(() => {
+    if (isMobileVariant) {
+      setTradeRail("fiat");
+    }
+  }, [isMobileVariant]);
 
   useEffect(() => {
     setFiatQuote(null);
@@ -890,38 +892,7 @@ const Trade = ({
     return (
       <>
         <div className="flex h-full flex-col bg-white text-gray-950 dark:bg-[#111111] dark:text-white">
-          <div className="flex items-center justify-between px-3.5 pt-2 pb-1">
-            <div className="inline-flex rounded-full bg-gray-100 p-1 dark:bg-white/6">
-              {(
-                [
-                  { label: "Naira", value: "fiat" },
-                  { label: "Onchain", value: "onchain" }
-                ] as const
-              ).map((option) => (
-                <button
-                  className={cn(
-                    "rounded-full px-2.5 py-1 font-semibold text-[11px] transition-colors",
-                    tradeRail === option.value
-                      ? "bg-gray-950 text-white dark:bg-white dark:text-[#111111]"
-                      : "text-gray-500 dark:text-white/60"
-                  )}
-                  key={option.value}
-                  onClick={() => setTradeRail(option.value)}
-                  type="button"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            <button
-              className="inline-flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200 dark:bg-white/5 dark:text-white/80 dark:hover:bg-white/10"
-              type="button"
-            >
-              <Cog6ToothIcon className="size-4" />
-            </button>
-          </div>
-
-          <div className="px-3.5 pt-1 pb-2">
+          <div className="px-3.5 pt-3 pb-2">
             <div className="flex items-center justify-between gap-2.5">
               <div className="flex min-w-0 items-center gap-2.5">
                 <Image
@@ -942,8 +913,8 @@ const Trade = ({
                     {symbol || "COIN"} ·{" "}
                     {isFiatRail
                       ? mode === "buy"
-                        ? "Support with Naira"
-                        : "Sell into Naira"
+                        ? "Buy with Naira"
+                        : "Sell to Naira"
                       : mode === "buy"
                         ? "Buy with ETH"
                         : "Sell from your wallet"}
@@ -971,7 +942,9 @@ const Trade = ({
                   className={cn(
                     "rounded-full px-3 py-1.5 font-semibold text-[11px] transition-colors",
                     mode === tab.value
-                      ? "bg-gray-950 text-white dark:bg-white dark:text-[#111111]"
+                      ? tab.value === "buy"
+                        ? "bg-emerald-500 text-white"
+                        : "bg-rose-500 text-white"
                       : "text-gray-500 dark:text-white/55"
                   )}
                   key={tab.value}
@@ -1069,7 +1042,12 @@ const Trade = ({
             </div>
 
             <button
-              className="mt-auto mb-4 flex h-11 w-full items-center justify-center rounded-[1rem] bg-gray-950 font-semibold text-[15px] text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:bg-white/8 dark:text-white dark:disabled:bg-white/6 dark:disabled:text-white/45 dark:hover:bg-white/12"
+              className={cn(
+                "mt-auto mb-4 flex h-11 w-full items-center justify-center rounded-[1rem] font-semibold text-[15px] text-white transition-colors disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 dark:disabled:bg-white/6 dark:disabled:text-white/45",
+                mode === "buy"
+                  ? "bg-emerald-500 hover:bg-emerald-600"
+                  : "bg-rose-500 hover:bg-rose-600"
+              )}
               disabled={!canSubmit}
               onClick={handleSubmit}
               type="button"
