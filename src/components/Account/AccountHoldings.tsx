@@ -14,6 +14,7 @@ import {
   Spinner
 } from "@/components/Shared/UI";
 import { ZORA_API_KEY } from "@/data/constants";
+import { NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import getCoinPath from "@/helpers/getCoinPath";
 import { formatUsdMetric } from "@/helpers/liveCreatorData";
 import nFormatter from "@/helpers/nFormatter";
@@ -156,7 +157,10 @@ const AccountHoldings = ({ address, username }: AccountHoldingsProps) => {
                   ) : null}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
-                  <span>${coin.symbol}</span>
+                  <span>
+                    {NAIRA_SYMBOL}
+                    {coin.symbol}
+                  </span>
                   {creatorHandle ? <span>{creatorHandle}</span> : null}
                 </div>
               </div>

@@ -143,7 +143,6 @@ type RecentSwapEntry = {
   meta: string;
 };
 
-type TradeRail = "fiat" | "onchain";
 type FiatQuoteState = null | {
   amountLabel: string;
   displayValue: string;
@@ -328,7 +327,6 @@ const Swap = () => {
   const { data: signingWalletClient } = useWalletClient();
   const handleWrongNetwork = useHandleWrongNetwork();
   const [amount, setAmount] = useState("0.01");
-  const [tradeRail, setTradeRail] = useState<TradeRail>("fiat");
   const [direction, setDirection] = useState<"ethToToken" | "tokenToEth">(
     "ethToToken"
   );
@@ -526,7 +524,7 @@ const Swap = () => {
   useEffect(() => {
     setFiatQuote(null);
     setFiatQuoteError(null);
-  }, [amount, direction, selectedCoin?.address, tradeRail]);
+  }, [amount, direction, selectedCoin?.address]);
 
   const activeCoin = selectedCoin ?? coins[0] ?? EMPTY_COIN;
   const fromIsEth = direction === "ethToToken";
@@ -583,7 +581,7 @@ const Swap = () => {
 
   const parsedAmount = Number.parseFloat(amount || "0");
   const hasValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
-  const isFiatRail = tradeRail === "fiat";
+  const isFiatRail = true;
 
   const makeTradeParams = (sender: Address): null | TradeParameters => {
     if (!activeCoin.address || !hasValidAmount) {
@@ -1820,30 +1818,7 @@ const Swap = () => {
               </div>
             </Card>
 
-            <div className="flex items-center justify-between gap-2 px-0.5">
-              <div className="inline-flex rounded-full bg-gray-100 p-1 dark:bg-[#1b1d22]">
-                {(
-                  [
-                    { label: "Naira", value: "fiat" },
-                    { label: "Onchain", value: "onchain" }
-                  ] as const
-                ).map((option) => (
-                  <button
-                    className={cn(
-                      "rounded-full px-3 py-1.5 font-semibold text-[11px] transition-colors",
-                      tradeRail === option.value
-                        ? "bg-gray-950 text-white dark:bg-white dark:text-[#111111]"
-                        : "text-gray-500 dark:text-white/60"
-                    )}
-                    key={option.value}
-                    onClick={() => setTradeRail(option.value)}
-                    type="button"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
+            <div className="flex items-center justify-end gap-2 px-0.5">
               {quoteExpiryText ? (
                 <p className="text-[10px] text-gray-500 dark:text-white/42">
                   {quoteExpiryText}

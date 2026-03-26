@@ -49,6 +49,7 @@ import {
   listPublicCoinCollaborations
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
+import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import { getPublicProfilePath } from "@/helpers/getAccount";
 import getCoinHolders from "@/helpers/getCoinHolders";
 import getCoinPriceHistory from "@/helpers/getCoinPriceHistory";
@@ -76,11 +77,7 @@ if (zoraApiKey) {
 const formatUsdMetric = (value?: null | string) => {
   const number = Number.parseFloat(value ?? "");
 
-  if (!Number.isFinite(number) || number <= 0) {
-    return "$0";
-  }
-
-  return `$${nFormatter(number, 2)}`;
+  return formatCompactNaira(number, 2);
 };
 
 const formatDelta = (value?: null | string) => {
@@ -319,7 +316,9 @@ const Coin = () => {
     refetchInterval: 12000
   });
 
-  const pageTitle = coin?.symbol ? `Trade $${coin.symbol}` : "Trade coin";
+  const pageTitle = coin?.symbol
+    ? `Trade ${NAIRA_SYMBOL}${coin.symbol}`
+    : "Trade coin";
   const previewImage = getCoinPreview(coin ?? null);
   const creatorHandle = creatorQuery.data?.handle?.trim()
     ? creatorQuery.data.handle.startsWith("@")

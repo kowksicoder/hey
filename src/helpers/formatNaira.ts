@@ -1,3 +1,5 @@
+import nFormatter from "@/helpers/nFormatter";
+
 export const NAIRA_SYMBOL = "₦";
 
 type FormatNairaOptions = {
@@ -20,4 +22,14 @@ export const formatNaira = (
   }).format(safeValue);
 
   return `${NAIRA_SYMBOL}${formatted}`;
+};
+
+export const formatCompactNaira = (value: number, digits = 2) => {
+  const safeValue = Number.isFinite(value) && value > 0 ? value : 0;
+
+  if (safeValue <= 0) {
+    return `${NAIRA_SYMBOL}0`;
+  }
+
+  return `${NAIRA_SYMBOL}${nFormatter(safeValue, digits)}`;
 };

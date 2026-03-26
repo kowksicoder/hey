@@ -101,7 +101,12 @@ const PersonalizeSettingsForm = () => {
 
   return (
     <Card>
-      <CardHeader icon={<BackButton path="/settings" />} title="Personalize" />
+      <div className="hidden md:block">
+        <CardHeader
+          icon={<BackButton path="/settings" />}
+          title="Personalize"
+        />
+      </div>
       <Form
         className="space-y-4 p-5"
         form={form}

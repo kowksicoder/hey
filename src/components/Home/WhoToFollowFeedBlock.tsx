@@ -8,17 +8,13 @@ import { Fragment, memo, useMemo, useState } from "react";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import cn from "@/helpers/cn";
 import formatAddress from "@/helpers/formatAddress";
-import nFormatter from "@/helpers/nFormatter";
+import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 
 const formatUsdMetric = (value?: string) => {
   const number = Number.parseFloat(value ?? "");
 
-  if (!Number.isFinite(number) || number <= 0) {
-    return "$0";
-  }
-
-  return `$${nFormatter(number, 2)}`;
+  return formatCompactNaira(number, 2);
 };
 
 const getCreatorName = (item: ZoraFeedItem) => {
@@ -73,7 +69,7 @@ const SuggestionCard = ({ item }: { item: ZoraFeedItem }) => {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate font-semibold text-[15px] text-white">
-                {item.symbol ? `$${item.symbol}` : item.name}
+                {item.symbol ? `${NAIRA_SYMBOL}${item.symbol}` : item.name}
               </p>
               <p className="mt-1 truncate text-[12px] text-white/70">
                 {creatorName}
@@ -96,7 +92,7 @@ const SuggestionCard = ({ item }: { item: ZoraFeedItem }) => {
 
       <div className="pt-2 md:hidden">
         <p className="overflow-hidden font-semibold text-[15px] text-gray-950 leading-5 [-webkit-box-orient:vertical] [-webkit-line-clamp:1] [display:-webkit-box] dark:text-white">
-          {item.symbol ? `$${item.symbol}` : item.name}
+          {item.symbol ? `${NAIRA_SYMBOL}${item.symbol}` : item.name}
         </p>
         <div className="mt-1">
           <span
@@ -130,7 +126,7 @@ const SuggestionListItem = ({ item }: { item: ZoraFeedItem }) => (
       </div>
       <div className="min-w-0">
         <p className="truncate font-semibold text-[15px] text-gray-950 dark:text-white">
-          {item.symbol ? `$${item.symbol}` : item.name}
+          {item.symbol ? `${NAIRA_SYMBOL}${item.symbol}` : item.name}
         </p>
         <p className="mt-0.5 truncate text-[13px] text-gray-500 dark:text-white/55">
           {getCreatorName(item)}

@@ -24,6 +24,7 @@ import { useNavigate } from "react-router";
 import { Spinner } from "@/components/Shared/UI";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import cn from "@/helpers/cn";
+import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import getCoinPath from "@/helpers/getCoinPath";
 import nFormatter from "@/helpers/nFormatter";
 import truncateByWords from "@/helpers/truncateByWords";
@@ -35,11 +36,7 @@ import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 const formatUsdMetric = (value?: string) => {
   const number = Number.parseFloat(value ?? "");
 
-  if (!Number.isFinite(number) || number <= 0) {
-    return "$0";
-  }
-
-  return `$${nFormatter(number, 2)}`;
+  return formatCompactNaira(number, 2);
 };
 
 const getCreatorName = (item: ZoraFeedItem) => {
@@ -326,7 +323,9 @@ const ZoraPostMobileViewer = ({
                 <div className="relative min-h-[15rem]">
                   <div className="absolute right-0 bottom-0 left-0 pr-20">
                     <p className="font-semibold text-[15px]">
-                      {item.symbol ? `$${item.symbol}` : item.name}
+                      {item.symbol
+                        ? `${NAIRA_SYMBOL}${item.symbol}`
+                        : item.name}
                     </p>
                     <div className="mt-1 flex items-center gap-2 text-[13px] text-white/80">
                       <p className="truncate">

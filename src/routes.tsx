@@ -24,6 +24,7 @@ import Missions from "@/components/Missions";
 import FanDropDetail from "@/components/Missions/Detail";
 import Notification from "@/components/Notification";
 import Copyright from "@/components/Pages/Copyright";
+import FAQ from "@/components/Pages/FAQ";
 import Guidelines from "@/components/Pages/Guidelines";
 import Privacy from "@/components/Pages/Privacy";
 import Support from "@/components/Pages/Support";
@@ -119,6 +120,7 @@ const Routes = () => {
             <Route element={<SessionsSettings />} path="sessions" />
             <Route element={<UsernameSettings />} path="username" />
             <Route element={<VerificationSettings />} path="verification" />
+            <Route element={<FAQ />} path="faq" />
           </Route>
           <Route path="staff">
             <Route element={<Staff />} index />
@@ -126,6 +128,7 @@ const Routes = () => {
             <Route element={<Staff />} path="collaborations" />
           </Route>
           <Route element={<Support />} path="support" />
+          <Route element={<FAQ />} path="faq" />
           <Route element={<Terms />} path="terms" />
           <Route element={<Privacy />} path="privacy" />
           <Route element={<Guidelines />} path="guidelines" />

@@ -23,6 +23,7 @@ import {
 import { ZORA_API_KEY } from "@/data/constants";
 import { Regex } from "@/data/regex";
 import errorToast from "@/helpers/errorToast";
+import { NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import getAccountAttribute from "@/helpers/getAccountAttribute";
 import prepareAccountMetadata from "@/helpers/prepareAccountMetadata";
 import uploadMetadata from "@/helpers/uploadMetadata";
@@ -216,7 +217,8 @@ const CreatorCoin = () => {
                 />
               }
             >
-              ${coin.symbol}
+              {NAIRA_SYMBOL}
+              {coin.symbol}
             </MetaDetails>
           )}
           {!isFetchingCoin && !coin && (

@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Address } from "viem";
 import { base } from "viem/chains";
 import { ZORA_API_KEY } from "@/data/constants";
+import { NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import getAccountAttribute from "@/helpers/getAccountAttribute";
 import type { AccountFragment } from "@/indexer/generated";
 import { Image, Modal } from "../../Shared/UI";
@@ -60,7 +61,8 @@ const CreatorCoin = ({ account }: CreatorCoinProps) => {
             />
           }
         >
-          ${coin.symbol}
+          {NAIRA_SYMBOL}
+          {coin.symbol}
         </MetaDetails>
       </button>
       <Modal

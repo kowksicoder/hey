@@ -15,6 +15,7 @@ import { DEFAULT_AVATAR } from "@/data/constants";
 import { HomeFeedView } from "@/data/enums";
 import cn from "@/helpers/cn";
 import formatAddress from "@/helpers/formatAddress";
+import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import getCoinPath from "@/helpers/getCoinPath";
 import nFormatter from "@/helpers/nFormatter";
 import truncateByWords from "@/helpers/truncateByWords";
@@ -24,11 +25,7 @@ import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 const formatUsdMetric = (value?: string) => {
   const number = Number.parseFloat(value ?? "");
 
-  if (!Number.isFinite(number) || number <= 0) {
-    return "$0";
-  }
-
-  return `$${nFormatter(number, 2)}`;
+  return formatCompactNaira(number, 2);
 };
 
 const formatDelta = (value?: string) => {
@@ -330,7 +327,7 @@ const ZoraPostCard = ({
                   onClick={handleCoinNavigation}
                   type="button"
                 >
-                  {item.symbol ? `$${item.symbol}` : "Coin"}
+                  {item.symbol ? `${NAIRA_SYMBOL}${item.symbol}` : "Coin"}
                 </button>
                 {collaboration ? (
                   <span className="inline-flex shrink-0 items-center rounded-full bg-sky-500/12 px-2 py-0.5 font-semibold text-[9px] text-sky-700 ring-1 ring-sky-500/20 dark:bg-sky-500/14 dark:text-sky-300 dark:ring-sky-400/20">

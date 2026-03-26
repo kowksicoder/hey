@@ -31,6 +31,7 @@ import {
   EVERY1_COIN_CHAT_QUERY_KEY
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
+import { formatCompactNaira, formatNaira } from "@/helpers/formatNaira";
 import { getPublicProfilePath } from "@/helpers/getAccount";
 import type { CoinPriceHistoryPoint } from "@/helpers/getCoinPriceHistory";
 import nFormatter from "@/helpers/nFormatter";
@@ -101,22 +102,34 @@ const clamp = (value: number, min: number, max: number) =>
 
 const formatPrice = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) {
-    return "$0.00";
+    return formatNaira(0, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2
+    });
   }
 
   if (value >= 1000) {
-    return `$${nFormatter(value, 2)}`;
+    return formatCompactNaira(value, 2);
   }
 
   if (value >= 1) {
-    return `$${value.toFixed(2)}`;
+    return formatNaira(value, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2
+    });
   }
 
   if (value >= 0.1) {
-    return `$${value.toFixed(3)}`;
+    return formatNaira(value, {
+      maximumFractionDigits: 3,
+      minimumFractionDigits: 3
+    });
   }
 
-  return `$${value.toFixed(4)}`;
+  return formatNaira(value, {
+    maximumFractionDigits: 4,
+    minimumFractionDigits: 4
+  });
 };
 
 const formatUsdMetric = (value?: null | number | string) => {
@@ -124,14 +137,17 @@ const formatUsdMetric = (value?: null | number | string) => {
     typeof value === "number" ? value : Number.parseFloat(value ?? "");
 
   if (!Number.isFinite(numericValue) || numericValue <= 0) {
-    return "$0";
+    return formatNaira(0);
   }
 
   if (numericValue >= 1000) {
-    return `$${nFormatter(numericValue, 2)}`;
+    return formatCompactNaira(numericValue, 2);
   }
 
-  return `$${numericValue.toFixed(numericValue >= 1 ? 2 : 4)}`;
+  return formatNaira(numericValue, {
+    maximumFractionDigits: numericValue >= 1 ? 2 : 4,
+    minimumFractionDigits: numericValue >= 1 ? 2 : 4
+  });
 };
 
 const formatPercent = (value: number) => {
@@ -1152,30 +1168,30 @@ const MobileCoinView = ({
               ) : null}
             </section>
 
-            <section className="mt-3 overflow-hidden rounded-[0.95rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+            <section className="mt-2 overflow-hidden rounded-[0.82rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
               <button
-                className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+                className="flex w-full items-center justify-between gap-2 px-2.75 py-2 text-left"
                 onClick={() => setShowStatsDetails((value) => !value)}
                 type="button"
               >
-                <div className="flex min-w-0 items-center gap-2">
-                  <h2 className="font-semibold text-[0.9rem] text-gray-950 dark:text-white">
+                <div className="min-w-0">
+                  <h2 className="font-semibold text-[0.82rem] text-gray-950 dark:text-white">
                     Stats
                   </h2>
-                  <p className="truncate text-[10px] text-gray-500 dark:text-white/45">
-                    View coin metrics
+                  <p className="mt-0.5 truncate text-[9px] text-gray-500 dark:text-white/42">
+                    Coin metrics
                   </p>
                 </div>
                 <ChevronDownIcon
                   className={cn(
-                    "size-4 text-gray-500 transition-transform dark:text-white/55",
+                    "size-3.5 text-gray-500 transition-transform dark:text-white/55",
                     showStatsDetails && "rotate-180"
                   )}
                 />
               </button>
               {showStatsDetails ? (
-                <div className="border-gray-200 border-t px-3.5 py-3 dark:border-white/8">
-                  <div className="space-y-2.5">
+                <div className="border-gray-200 border-t px-3 py-2.5 dark:border-white/8">
+                  <div className="space-y-2">
                     {[
                       { label: "Age", value: formatAgeLong(createdAt) },
                       {
@@ -1209,13 +1225,13 @@ const MobileCoinView = ({
                       }
                     ].map((row) => (
                       <div
-                        className="flex items-center justify-between gap-4"
+                        className="flex items-center justify-between gap-3"
                         key={row.label}
                       >
-                        <p className="text-[11px] text-gray-400 dark:text-white/38">
+                        <p className="text-[10px] text-gray-400 dark:text-white/38">
                           {row.label}
                         </p>
-                        <p className="text-right font-medium text-[12px] text-gray-950 dark:text-white">
+                        <p className="text-right font-medium text-[11px] text-gray-950 dark:text-white">
                           {row.value}
                         </p>
                       </div>
@@ -1225,44 +1241,44 @@ const MobileCoinView = ({
               ) : null}
             </section>
 
-            <section className="mt-3 overflow-hidden rounded-[0.95rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+            <section className="mt-2 overflow-hidden rounded-[0.82rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
               <button
-                className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+                className="flex w-full items-center justify-between gap-2 px-2.75 py-2 text-left"
                 onClick={() => setShowContractDetails((value) => !value)}
                 type="button"
               >
-                <div className="flex min-w-0 items-center gap-2">
-                  <h2 className="font-semibold text-[0.9rem] text-gray-950 dark:text-white">
+                <div className="min-w-0">
+                  <h2 className="font-semibold text-[0.82rem] text-gray-950 dark:text-white">
                     Contract
                   </h2>
-                  <p className="truncate text-[10px] text-gray-500 dark:text-white/45">
-                    View creator and chain
+                  <p className="mt-0.5 truncate text-[9px] text-gray-500 dark:text-white/42">
+                    Creator + chain
                   </p>
                 </div>
                 <ChevronDownIcon
                   className={cn(
-                    "size-4 text-gray-500 transition-transform dark:text-white/55",
+                    "size-3.5 text-gray-500 transition-transform dark:text-white/55",
                     showContractDetails && "rotate-180"
                   )}
                 />
               </button>
               {showContractDetails ? (
-                <div className="border-gray-200 border-t px-3.5 py-3 dark:border-white/8">
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-[11px] text-gray-400 dark:text-white/38">
+                <div className="border-gray-200 border-t px-3 py-2.5 dark:border-white/8">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] text-gray-400 dark:text-white/38">
                         {collaboration ? "Creators" : "Creator"}
                       </p>
                       <div className="min-w-0 text-right">
                         <div className="flex min-w-0 items-center justify-end gap-1.5">
-                          <p className="truncate font-medium text-[12px] text-gray-950 dark:text-white">
+                          <p className="truncate font-medium text-[11px] text-gray-950 dark:text-white">
                             {collaborationDisplayLabel || creatorDisplayName}
                           </p>
                           {creatorIsOfficial ? (
                             <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
                           ) : null}
                         </div>
-                        <p className="truncate text-[10px] text-gray-500 dark:text-white/45">
+                        <p className="truncate text-[9px] text-gray-500 dark:text-white/45">
                           {collaboration
                             ? `${collaboration.activeMemberCount} collaborators`
                             : creatorHandle}
@@ -1270,21 +1286,21 @@ const MobileCoinView = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-[11px] text-gray-400 dark:text-white/38">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] text-gray-400 dark:text-white/38">
                         Chain
                       </p>
-                      <p className="font-medium text-[12px] text-gray-950 dark:text-white">
+                      <p className="font-medium text-[11px] text-gray-950 dark:text-white">
                         Base
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between gap-4">
-                      <p className="text-[11px] text-gray-400 dark:text-white/38">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] text-gray-400 dark:text-white/38">
                         Contract address
                       </p>
                       <button
-                        className="inline-flex items-center gap-1 font-medium text-[12px] text-gray-950 dark:text-white"
+                        className="inline-flex items-center gap-1 font-medium text-[11px] text-gray-950 dark:text-white"
                         onClick={copyAddress}
                         type="button"
                       >
@@ -1297,7 +1313,7 @@ const MobileCoinView = ({
 
                     <div className="flex flex-wrap gap-1.5 pt-0.5">
                       <button
-                        className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1.5 text-[10px] text-gray-700 dark:bg-white/[0.06] dark:text-white/85"
+                        className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-[9px] text-gray-700 dark:bg-white/[0.06] dark:text-white/85"
                         onClick={() =>
                           window.open(
                             `https://basescan.org/address/${coin.address}`,
@@ -1309,7 +1325,7 @@ const MobileCoinView = ({
                         <ArrowTopRightOnSquareIcon className="size-3" />
                         Basescan
                       </button>
-                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1.5 text-[10px] text-gray-700 dark:bg-[#111827] dark:text-white/85">
+                      <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-[9px] text-gray-700 dark:bg-[#111827] dark:text-white/85">
                         Zora coin
                       </span>
                     </div>

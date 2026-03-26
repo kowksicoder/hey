@@ -2,6 +2,7 @@ import {
   ArrowRightIcon,
   CreditCardIcon,
   PaintBrushIcon,
+  QuestionMarkCircleIcon,
   ShieldCheckIcon
 } from "@heroicons/react/24/outline";
 import { Link } from "react-router";
@@ -35,13 +36,20 @@ const AccountSettings = () => {
       icon: <ShieldCheckIcon className="size-5" />,
       title: "Official profile",
       url: "/settings/verification"
+    },
+    {
+      icon: <QuestionMarkCircleIcon className="size-5" />,
+      title: "FAQ",
+      url: "/settings/faq"
     }
   ];
 
   return (
     <PageLayout title="Settings">
       <Card>
-        <CardHeader icon={<BackButton path="/" />} title="Settings" />
+        <div className="hidden md:block">
+          <CardHeader icon={<BackButton path="/" />} title="Settings" />
+        </div>
         <div className="p-5">
           <SingleAccount
             account={currentAccount as AccountFragment}

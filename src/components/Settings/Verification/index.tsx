@@ -441,10 +441,12 @@ const VerificationSettings = () => {
     return (
       <PageLayout title="Official profile">
         <Card>
-          <CardHeader
-            icon={<BackButton path="/settings" />}
-            title="Claim Official Profile"
-          />
+          <div className="hidden md:block">
+            <CardHeader
+              icon={<BackButton path="/settings" />}
+              title="Claim Official Profile"
+            />
+          </div>
           <div className="p-5 text-gray-600 text-sm dark:text-gray-300">
             Your Every1 profile is still syncing. Refresh this page in a moment.
           </div>
@@ -958,10 +960,12 @@ const VerificationSettings = () => {
     <PageLayout title="Official profile">
       <div className="space-y-4">
         <Card>
-          <CardHeader
-            icon={<BackButton path="/settings" />}
-            title="Claim Official Profile"
-          />
+          <div className="hidden md:block">
+            <CardHeader
+              icon={<BackButton path="/settings" />}
+              title="Claim Official Profile"
+            />
+          </div>
           <div className="space-y-4 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>

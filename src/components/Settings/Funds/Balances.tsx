@@ -26,15 +26,16 @@ import {
   listProfileWalletActivity
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
+import { formatNaira } from "@/helpers/formatNaira";
 import getTokenImage from "@/helpers/getTokenImage";
 import useEnsureIndexerAuth from "@/hooks/useEnsureIndexerAuth";
 import { useBalancesBulkQuery } from "@/indexer/generated";
 import { useFundModalStore } from "@/store/non-persisted/modal/useFundModalStore";
 import { useAccountStore } from "@/store/persisted/useAccountStore";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
+import FiatWalletPanel from "./FiatWalletPanel";
 import Unwrap from "./Unwrap";
 import Withdraw from "./Withdraw";
-import FiatWalletPanel from "./FiatWalletPanel";
 import Wrap from "./Wrap";
 
 type FundsTab = "activity" | "coins" | "collectibles";
@@ -64,19 +65,20 @@ const modalActionClassName =
 
 const formatCurrency = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) {
-    return "$0";
+    return formatNaira(0);
   }
 
   if (value < 0.01) {
-    return "<$0.01";
+    return `<${formatNaira(0.01, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2
+    })}`;
   }
 
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
+  return formatNaira(value, {
     maximumFractionDigits: value >= 100 ? 0 : 2,
-    minimumFractionDigits: value >= 100 ? 0 : 2,
-    style: "currency"
-  }).format(value);
+    minimumFractionDigits: value >= 100 ? 0 : 2
+  });
 };
 
 const formatTokenAmount = (amount: number, symbol: string) => {
@@ -302,7 +304,7 @@ const DepositFundsModal = ({
                 onClick={() => setSelectedAmount(amount)}
                 type="button"
               >
-                ${amount}
+                {formatNaira(amount)}
               </button>
             ))}
           </div>
@@ -332,7 +334,7 @@ const SectionRow = ({
       ? formatCurrency(asset.usdValue)
       : asset.amount > 0
         ? asset.amountLabel
-        : "$0";
+        : formatNaira(0);
 
   return (
     <button

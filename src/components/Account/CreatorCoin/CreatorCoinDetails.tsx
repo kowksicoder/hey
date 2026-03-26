@@ -7,6 +7,7 @@ import { base } from "viem/chains";
 import Loader from "@/components/Shared/Loader";
 import { Button, Image, Modal } from "@/components/Shared/UI";
 import cn from "@/helpers/cn";
+import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import humanize from "@/helpers/humanize";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
 import Trade from "./Trade";
@@ -49,10 +50,11 @@ const CreatorCoinDetails = ({ address }: CreatorCoinDetailsProps) => {
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="mb-1 text-gray-700 dark:text-gray-300">
-            ${coin.symbol}
+            {NAIRA_SYMBOL}
+            {coin.symbol}
           </div>
           <div className="font-extrabold text-3xl leading-none tracking-tight md:text-4xl">
-            ${humanize(Math.round(marketCap))}
+            {formatCompactNaira(Math.round(marketCap))}
           </div>
           <div
             className={cn(
@@ -88,7 +90,7 @@ const CreatorCoinDetails = ({ address }: CreatorCoinDetailsProps) => {
             24h volume
           </div>
           <div className="font-semibold text-2xl">
-            ${humanize(Math.round(volume24h))}
+            {formatCompactNaira(Math.round(volume24h))}
           </div>
         </div>
       </div>
@@ -117,7 +119,7 @@ const CreatorCoinDetails = ({ address }: CreatorCoinDetailsProps) => {
       <Modal
         onClose={() => setShowTrade(false)}
         show={showTrade}
-        title={`Trade $${coin.name}`}
+        title={`Trade ${NAIRA_SYMBOL}${coin.name}`}
       >
         <Trade coin={coin} onClose={() => setShowTrade(false)} />
       </Modal>

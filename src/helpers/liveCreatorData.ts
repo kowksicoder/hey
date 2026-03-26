@@ -18,6 +18,7 @@ import {
   getPublicEvery1ProfilesByWallets
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
+import { formatCompactNaira } from "@/helpers/formatNaira";
 import getZoraApiKey from "@/helpers/getZoraApiKey";
 import nFormatter from "@/helpers/nFormatter";
 import { listPublicPlatformLaunches } from "@/helpers/platformDiscovery";
@@ -734,11 +735,7 @@ export const parseMetricNumber = (value?: number | string | null) => {
 export const formatUsdMetric = (value?: number | string | null, digits = 2) => {
   const amount = parseMetricNumber(value);
 
-  if (amount <= 0) {
-    return "$0";
-  }
-
-  return `$${nFormatter(amount, digits)}`;
+  return formatCompactNaira(amount, digits);
 };
 
 export const formatCompactMetric = (

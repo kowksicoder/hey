@@ -803,6 +803,7 @@ const Trade = ({
         minute: "2-digit"
       })}`
     : null;
+  const mobileSummaryText = fiatQuoteError || fiatQuote?.summary || "";
   const submitLabel = loading
     ? mode === "buy"
       ? isFiatRail
@@ -868,11 +869,21 @@ const Trade = ({
           <div className="px-3.5 pt-3 pb-2">
             <div className="mb-2 flex items-center justify-between">
               <button
-                className="inline-flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-700 dark:bg-white/6 dark:text-white/80"
-                onClick={() => onClose?.()}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-gray-100 px-2.5 text-gray-700 dark:bg-white/6 dark:text-white/80"
+                onClick={() => {
+                  if (onClose) {
+                    onClose();
+                    return;
+                  }
+
+                  if (typeof window !== "undefined") {
+                    window.history.back();
+                  }
+                }}
                 type="button"
               >
                 <ArrowLeftIcon className="size-4" />
+                <span className="font-medium text-[11px]">Back</span>
               </button>
               <p className="font-semibold text-[11px] text-gray-500 uppercase tracking-[0.12em] dark:text-white/45">
                 Trade
@@ -912,11 +923,18 @@ const Trade = ({
                 <p className="font-semibold text-[1.15rem] text-gray-950 dark:text-white">
                   {Number.parseFloat(coin.marketCap ?? "0") > 0 &&
                   Number.parseFloat(coin.totalSupply ?? "0") > 0
-                    ? `$${(
+                    ? formatNaira(
                         Number.parseFloat(coin.marketCap ?? "0") /
-                          Number.parseFloat(coin.totalSupply ?? "1")
-                      ).toFixed(4)}`
-                    : "$0.00"}
+                          Number.parseFloat(coin.totalSupply ?? "1"),
+                        {
+                          maximumFractionDigits: 4,
+                          minimumFractionDigits: 4
+                        }
+                      )
+                    : formatNaira(0, {
+                        maximumFractionDigits: 2,
+                        minimumFractionDigits: 2
+                      })}
                 </p>
               </div>
             </div>
@@ -993,23 +1011,27 @@ const Trade = ({
               ))}
             </div>
 
-            <div className="pb-2 text-center">
-              <p
-                className={cn(
-                  "text-[11px] leading-4",
-                  fiatQuoteError
-                    ? "text-rose-500 dark:text-rose-300"
-                    : "text-gray-500 dark:text-white/55"
-                )}
-              >
-                {summaryText}
-              </p>
-              {quoteExpiryText ? (
-                <p className="mt-1 text-[10px] text-gray-400 dark:text-white/35">
-                  {quoteExpiryText}
-                </p>
-              ) : null}
-            </div>
+            {mobileSummaryText || quoteExpiryText ? (
+              <div className="pb-2 text-center">
+                {mobileSummaryText ? (
+                  <p
+                    className={cn(
+                      "text-[11px] leading-4",
+                      fiatQuoteError
+                        ? "text-rose-500 dark:text-rose-300"
+                        : "text-gray-500 dark:text-white/55"
+                    )}
+                  >
+                    {mobileSummaryText}
+                  </p>
+                ) : null}
+                {quoteExpiryText ? (
+                  <p className="mt-1 text-[10px] text-gray-400 dark:text-white/35">
+                    {quoteExpiryText}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-3 gap-x-2 gap-y-2.5 pb-3">
               {mobilePadKeys.map((key) => (
