@@ -19,6 +19,7 @@ export interface Every1Profile {
   avatarUrl: null | string;
   bannerUrl: null | string;
   walletAddress: null | string;
+  executionWalletAddress: null | string;
   lensAccountAddress: null | string;
   zoraHandle: null | string;
   referralCode: null | string;
@@ -228,7 +229,7 @@ export interface Every1WalletRewardToken {
 
 export interface Every1WalletActivityItem {
   activityId: string;
-  activityKind: "collaboration_payout" | "fandrop_reward";
+  activityKind: "collaboration_payout" | "fandrop_reward" | "referral_reward";
   amount: number;
   createdAt: string;
   sourceName: string;

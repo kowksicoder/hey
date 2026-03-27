@@ -137,3 +137,43 @@ export const insertFiatLedgerEntryIfMissing = async ({ entry, supabase }) => {
 
   return data?.id || null;
 };
+
+export const recordReferralTradeRewardIfEligible = async ({
+  chainId = 8453,
+  coinAddress,
+  coinSymbol,
+  profileId,
+  supabase,
+  tradeAmountIn,
+  tradeAmountOut,
+  tradeSide,
+  txHash
+}) => {
+  if (
+    !supabase ||
+    !profileId ||
+    !coinAddress ||
+    !coinSymbol ||
+    !txHash ||
+    !tradeSide
+  ) {
+    return null;
+  }
+
+  const { data, error } = await supabase.rpc("record_referral_trade_reward", {
+    input_chain_id: chainId,
+    input_coin_address: coinAddress,
+    input_coin_symbol: coinSymbol,
+    input_profile_id: profileId,
+    input_trade_amount_in: tradeAmountIn,
+    input_trade_amount_out: tradeAmountOut,
+    input_trade_side: tradeSide,
+    input_tx_hash: txHash
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+};

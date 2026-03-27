@@ -63,7 +63,7 @@ const GlobalModals = () => {
         onClose={() => setShowSwitchAccountModal(false)}
         show={showSwitchAccountModal}
         size="xs"
-        title="Manage Wallets"
+        title="Every1 Wallets"
       >
         <SwitchAccounts />
       </Modal>

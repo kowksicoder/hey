@@ -25,6 +25,7 @@ import RecentAccounts from "./RecentAccounts";
 
 interface SearchProps {
   className?: string;
+  dropdownClassName?: string;
   inputClassName?: string;
   placeholder?: string;
 }
@@ -57,6 +58,7 @@ const normalizeSearchType = (value?: null | string) => {
 
 const Search = ({
   className = "",
+  dropdownClassName = "",
   inputClassName = "",
   placeholder = "Search..."
 }: SearchProps) => {
@@ -257,7 +259,10 @@ const Search = ({
         />
       </Form>
       {pathname !== "/search" && showDropdown ? (
-        <div className="fixed z-10 mt-2 w-[360px]" ref={dropdownRef}>
+        <div
+          className={cn("fixed z-10 mt-2 w-[360px]", dropdownClassName)}
+          ref={dropdownRef}
+        >
           <Card className="max-h-[80vh] overflow-y-auto py-2">
             {!debouncedSearchText && (
               <RecentAccounts onAccountClick={handleReset} />

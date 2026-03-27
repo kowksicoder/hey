@@ -35,6 +35,9 @@ export const createSellService = ({
   sellFeeBps = 250,
   supabase
 }) => {
+  const resolveExecutionWalletAddress = (profile) =>
+    profile?.execution_wallet_address || profile?.wallet_address || null;
+
   const buildExecutionPayload = ({ transaction, wallet }) => ({
     message:
       transaction.status === "completed"
@@ -221,9 +224,10 @@ export const createSellService = ({
       "Naira sell settlement is not configured on this server.",
       503
     );
+    const executionWalletAddress = resolveExecutionWalletAddress(profile);
     assert(
-      profile?.wallet_address && isAddress(profile.wallet_address),
-      "A connected wallet is required to sell creator coins.",
+      executionWalletAddress && isAddress(executionWalletAddress),
+      "A connected execution wallet is required to sell creator coins.",
       401
     );
     const profileId = profile.id;
@@ -333,7 +337,7 @@ export const createSellService = ({
       publicClient.readContract({
         abi: erc20Abi,
         address: quote.coin_address,
-        args: [profile.wallet_address],
+        args: [executionWalletAddress],
         functionName: "balanceOf"
       }),
       getWalletOverviewRow({
@@ -392,7 +396,7 @@ export const createSellService = ({
         transferAmountRaw:
           quote.metadata?.transferAmountRaw || requestedAmount.toString(),
         transferTxHash: body.transactionHash,
-        walletAddress: profile.wallet_address
+        walletAddress: executionWalletAddress
       },
       net_naira_return_kobo: quote.net_naira_return_kobo,
       profile_id: profileId,

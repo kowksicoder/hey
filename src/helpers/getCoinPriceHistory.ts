@@ -5,6 +5,8 @@ import {
 } from "@zoralabs/coins-sdk";
 import type { Address } from "viem";
 import { base } from "viem/chains";
+import { DEFAULT_AVATAR } from "@/data/constants";
+import formatAddress from "@/helpers/formatAddress";
 import getZoraApiKey from "@/helpers/getZoraApiKey";
 
 const zoraApiKey = getZoraApiKey();
@@ -26,6 +28,11 @@ export interface CoinPriceHistoryPoint {
   totalUsd: number;
   coinAmount: number;
   activityType: "BUY" | "SELL" | null;
+  actorAddress: string;
+  actorAvatar: string;
+  actorHandle: string;
+  actorProfileHandle: null | string;
+  transactionHash: string;
 }
 
 const PAGE_SIZE = 100;
@@ -36,6 +43,7 @@ const parseSwapNode = (node: SwapNode): CoinPriceHistoryPoint | null => {
   const totalUsd = Number.parseFloat(
     node.currencyAmountWithPrice?.priceUsdc || ""
   );
+  const senderHandle = node.senderProfile?.handle?.trim() || null;
 
   if (!Number.isFinite(coinAmount) || coinAmount <= 0) {
     return null;
@@ -53,11 +61,23 @@ const parseSwapNode = (node: SwapNode): CoinPriceHistoryPoint | null => {
 
   return {
     activityType: node.activityType || null,
+    actorAddress: node.senderAddress,
+    actorAvatar:
+      node.senderProfile?.avatar?.previewImage?.medium ||
+      node.senderProfile?.avatar?.previewImage?.small ||
+      DEFAULT_AVATAR,
+    actorHandle: senderHandle
+      ? senderHandle.startsWith("@")
+        ? senderHandle
+        : `@${senderHandle}`
+      : formatAddress(node.senderAddress),
+    actorProfileHandle: senderHandle,
     coinAmount,
     id: node.id,
     priceUsd,
     timestamp: node.blockTimestamp,
-    totalUsd
+    totalUsd,
+    transactionHash: node.transactionHash
   };
 };
 

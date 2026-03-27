@@ -23,9 +23,16 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { Address } from "viem";
 import Trade from "@/components/Account/CreatorCoin/Trade";
+import CoinFanDropPanel from "@/components/Coin/CoinFanDropPanel";
+import CoinMediaSlide from "@/components/Coin/CoinMediaSlide";
 import { Image, Spinner } from "@/components/Shared/UI";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import cn from "@/helpers/cn";
+import {
+  getTemporaryTestCoinMedia,
+  resolveCoinMedia
+} from "@/helpers/coinMedia";
+import formatRelativeOrAbsolute from "@/helpers/datetime/formatRelativeOrAbsolute";
 import {
   createCoinChatMessage,
   EVERY1_COIN_CHAT_QUERY_KEY
@@ -33,6 +40,7 @@ import {
 import formatAddress from "@/helpers/formatAddress";
 import { formatCompactNaira, formatNaira } from "@/helpers/formatNaira";
 import { getPublicProfilePath } from "@/helpers/getAccount";
+import type { CoinHolder } from "@/helpers/getCoinHolders";
 import type { CoinPriceHistoryPoint } from "@/helpers/getCoinPriceHistory";
 import nFormatter from "@/helpers/nFormatter";
 import { getSupabaseClient, hasSupabaseConfig } from "@/helpers/supabase";
@@ -41,11 +49,12 @@ import useOpenAuth from "@/hooks/useOpenAuth";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
 import type {
   Every1CoinChatMessage,
+  Every1FanDropCampaign,
   Every1PublicCoinCollaboration,
   Every1PublicCollaborationMember
 } from "@/types/every1";
 
-type MobileCoinTab = "about" | "chat";
+type MobileCoinTab = "about" | "activity" | "chat" | "fandrop" | "holders";
 type MobileTradeMode = "buy" | "sell";
 type ChartRange = "1D" | "1H" | "1M" | "1W" | "6H" | "ALL";
 
@@ -394,7 +403,14 @@ interface MobileCoinViewProps {
   creatorHandle: string;
   creatorIsOfficial?: boolean;
   description?: null | string;
+  fanDropCampaigns: Every1FanDropCampaign[];
+  fanDropsLoading?: boolean;
+  holderCount: number;
   holdingAmount: number;
+  holders: CoinHolder[];
+  holdersLoading?: boolean;
+  launchCategory?: null | string;
+  launchMediaUrl?: null | string;
   priceHistory: CoinPriceHistoryPoint[];
   totalSupply?: null | string;
   totalVolume?: null | string;
@@ -415,7 +431,14 @@ const MobileCoinView = ({
   creatorHandle,
   creatorIsOfficial = false,
   description,
+  fanDropCampaigns,
+  fanDropsLoading = false,
+  holderCount,
   holdingAmount,
+  holders,
+  holdersLoading = false,
+  launchCategory,
+  launchMediaUrl,
   priceHistory,
   totalSupply,
   totalVolume
@@ -442,6 +465,15 @@ const MobileCoinView = ({
   const hasFansCorner = collaborationLookupComplete && !collaboration;
   const collaborationMembers = collaboration?.members || [];
   const collaborationDisplayLabel = getCollaborationDisplayLabel(collaboration);
+  const resolvedLaunchMedia = useMemo(
+    () =>
+      resolveCoinMedia(launchMediaUrl, launchCategory) ||
+      getTemporaryTestCoinMedia("track"),
+    [launchCategory, launchMediaUrl]
+  );
+  const heroSlides = resolvedLaunchMedia
+    ? (["media", "post", "chart"] as const)
+    : (["post", "chart"] as const);
   const creatorUsername = creatorHandle?.trim()
     ? creatorHandle.startsWith("@")
       ? creatorHandle
@@ -466,9 +498,11 @@ const MobileCoinView = ({
       return;
     }
 
+    const slide = slider.children.item(nextIndex) as HTMLElement | null;
+
     slider.scrollTo({
       behavior: "smooth",
-      left: slider.clientWidth * nextIndex
+      left: slide?.offsetLeft || 0
     });
     setActiveHeroSlide(nextIndex);
   };
@@ -627,6 +661,12 @@ const MobileCoinView = ({
     coin.mediaContent?.previewImage?.small ||
     creatorAvatar ||
     DEFAULT_AVATAR;
+
+  useEffect(() => {
+    setActiveHeroSlide((current) =>
+      clamp(current, 0, Math.max(heroSlides.length - 1, 0))
+    );
+  }, [heroSlides.length]);
   const sendChatMutation = useMutation({
     mutationFn: async () => {
       if (!profile?.id) {
@@ -697,6 +737,52 @@ const MobileCoinView = ({
       label
     }));
   }, [chatMessages]);
+  const recentActivity = useMemo(
+    () =>
+      [...priceHistory]
+        .sort(
+          (left, right) =>
+            new Date(right.timestamp).getTime() -
+            new Date(left.timestamp).getTime()
+        )
+        .slice(0, 24),
+    [priceHistory]
+  );
+  const mobileTabs: Array<{
+    count?: string;
+    label: string;
+    value: MobileCoinTab;
+  }> = [
+    {
+      count: nFormatter(holderCount, 1) || "0",
+      label: "Holders",
+      value: "holders"
+    },
+    {
+      count: recentActivity.length
+        ? nFormatter(recentActivity.length, 1)
+        : undefined,
+      label: "Activity",
+      value: "activity"
+    },
+    {
+      count: fanDropCampaigns.length
+        ? String(fanDropCampaigns.length)
+        : undefined,
+      label: "FanDrop",
+      value: "fandrop"
+    },
+    { label: "About", value: "about" },
+    ...(hasFansCorner
+      ? [
+          {
+            count: nFormatter(liveChatterCount, 1) || "0",
+            label: "Fans Corner",
+            value: "chat" as const
+          }
+        ]
+      : [])
+  ];
   const chatInputPlaceholder = profile?.id
     ? canJoinFansCorner
       ? "Start chatting..."
@@ -890,168 +976,229 @@ const MobileCoinView = ({
                 className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth"
                 onScroll={(event) => {
                   const target = event.currentTarget;
-                  const nextIndex = Math.round(
-                    target.scrollLeft / Math.max(target.clientWidth, 1)
+                  const slides = Array.from(target.children) as HTMLElement[];
+
+                  if (!slides.length) {
+                    return;
+                  }
+
+                  const nextIndex = slides.reduce(
+                    (closestIndex, slide, index) => {
+                      const closestDistance = Math.abs(
+                        slides[closestIndex].offsetLeft - target.scrollLeft
+                      );
+                      const nextDistance = Math.abs(
+                        slide.offsetLeft - target.scrollLeft
+                      );
+
+                      return nextDistance < closestDistance
+                        ? index
+                        : closestIndex;
+                    },
+                    0
                   );
-                  setActiveHeroSlide(clamp(nextIndex, 0, 1));
+
+                  setActiveHeroSlide(
+                    clamp(nextIndex, 0, Math.max(heroSlides.length - 1, 0))
+                  );
                 }}
                 ref={heroSliderRef}
               >
-                <div className="relative h-[11.25rem] w-full shrink-0 snap-center overflow-hidden rounded-[1rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#0f0f10]">
-                  <Image
-                    alt={coin.name}
-                    className="h-full w-full object-cover"
-                    src={coverImage}
-                  />
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-3 py-3">
-                    <div className="flex items-end gap-2.5">
-                      {collaborationMembers.length > 1 ? (
-                        <div className="relative h-9 w-[3.25rem]">
-                          {collaborationMembers
-                            .slice(0, 2)
-                            .map((member, index) => (
+                {heroSlides.map((slide) => (
+                  <Fragment key={slide}>
+                    {slide === "media" ? (
+                      <CoinMediaSlide
+                        category={launchCategory}
+                        coverImage={coverImage}
+                        fallbackVariant="track"
+                        mediaUrl={launchMediaUrl}
+                        showTestFallback
+                        title={coin.name}
+                      />
+                    ) : slide === "chart" ? (
+                      <div className="relative w-full shrink-0 snap-center overflow-hidden rounded-[1rem] border border-gray-200 bg-white px-1.5 py-1 dark:border-white/8 dark:bg-[#0f0f10]">
+                        <div className="absolute inset-x-0 top-0 h-10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.12),_transparent_60%)] dark:bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_60%)]" />
+                        {chartLoading ? (
+                          <div className="absolute top-3 right-3">
+                            <Spinner size="xs" />
+                          </div>
+                        ) : null}
+                        <div className="relative">
+                          <div className="flex justify-between px-2.5 text-[10px] text-gray-400 dark:text-white/45">
+                            <span>{chartData.highLabel}</span>
+                            <span />
+                          </div>
+
+                          <svg
+                            aria-label={`${coin.name} price chart`}
+                            className="mt-0.5 h-[5.6rem] w-full"
+                            preserveAspectRatio="none"
+                            viewBox="0 0 340 220"
+                          >
+                            <title>{`${coin.name} price chart`}</title>
+                            <defs>
+                              <linearGradient
+                                id="coin-mobile-chart-gradient"
+                                x1="0%"
+                                x2="0%"
+                                y1="0%"
+                                y2="100%"
+                              >
+                                <stop
+                                  offset="0%"
+                                  stopColor="rgba(34,197,94,0.34)"
+                                />
+                                <stop
+                                  offset="100%"
+                                  stopColor="rgba(34,197,94,0)"
+                                />
+                              </linearGradient>
+                            </defs>
+                            <path
+                              d={chartData.areaPath}
+                              fill="url(#coin-mobile-chart-gradient)"
+                            />
+                            <path
+                              d={chartData.linePath}
+                              fill="none"
+                              stroke="#4ADE80"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="4"
+                            />
+                            <circle
+                              cx={
+                                chartData.points[chartData.points.length - 1].x
+                              }
+                              cy={
+                                chartData.points[chartData.points.length - 1].y
+                              }
+                              fill="rgba(74,222,128,0.18)"
+                              r="13"
+                            />
+                            <circle
+                              cx={
+                                chartData.points[chartData.points.length - 1].x
+                              }
+                              cy={
+                                chartData.points[chartData.points.length - 1].y
+                              }
+                              fill="#4ADE80"
+                              r="6.5"
+                              stroke="#0b0b0b"
+                              strokeWidth="4"
+                            />
+                          </svg>
+
+                          <div className="mt-0.5 flex justify-between px-2.5 text-[10px] text-gray-400 dark:text-white/45">
+                            <span>{chartData.lowLabel}</span>
+                            <span />
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-0.5">
+                              {CHART_RANGES.map((range) => (
+                                <button
+                                  className={cn(
+                                    "rounded-full px-2 py-1 font-medium text-[9px] transition-colors",
+                                    activeRange === range
+                                      ? "bg-gray-900 text-white dark:bg-white/10 dark:text-white"
+                                      : "text-gray-400 dark:text-white/42"
+                                  )}
+                                  key={range}
+                                  onClick={() => setActiveRange(range)}
+                                  type="button"
+                                >
+                                  {range}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="inline-flex h-7 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 text-[9px] dark:border-white/10 dark:bg-white/[0.04]">
+                              <span className="font-medium text-gray-400 uppercase tracking-[0.08em] dark:text-white/45">
+                                Hold
+                              </span>
+                              <span className="font-semibold text-gray-950 dark:text-white">
+                                {formattedHoldingAmount}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="relative h-[11.25rem] w-full shrink-0 snap-center overflow-hidden rounded-[1rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#0f0f10]">
+                        <Image
+                          alt={coin.name}
+                          className="h-full w-full object-cover"
+                          src={coverImage}
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-3 py-3">
+                          <div className="flex items-end gap-2.5">
+                            {collaborationMembers.length > 1 ? (
+                              <div className="relative h-9 w-[3.25rem]">
+                                {collaborationMembers
+                                  .slice(0, 2)
+                                  .map((member, index) => (
+                                    <Image
+                                      alt={formatCollaborationMemberLabel(
+                                        member
+                                      )}
+                                      className={cn(
+                                        "absolute top-0 size-9 rounded-full border border-white/40 object-cover",
+                                        index === 0
+                                          ? "left-0 z-10"
+                                          : "right-0 z-20"
+                                      )}
+                                      height={36}
+                                      key={member.profileId}
+                                      src={member.avatarUrl || DEFAULT_AVATAR}
+                                      width={36}
+                                    />
+                                  ))}
+                              </div>
+                            ) : (
                               <Image
-                                alt={formatCollaborationMemberLabel(member)}
-                                className={cn(
-                                  "absolute top-0 size-9 rounded-full border border-white/40 object-cover",
-                                  index === 0 ? "left-0 z-10" : "right-0 z-20"
-                                )}
+                                alt={creatorDisplayName}
+                                className="size-9 rounded-full border border-white/40 object-cover"
                                 height={36}
-                                key={member.profileId}
-                                src={member.avatarUrl || DEFAULT_AVATAR}
+                                src={creatorAvatar || DEFAULT_AVATAR}
                                 width={36}
                               />
-                            ))}
-                        </div>
-                      ) : (
-                        <Image
-                          alt={creatorDisplayName}
-                          className="size-9 rounded-full border border-white/40 object-cover"
-                          height={36}
-                          src={creatorAvatar || DEFAULT_AVATAR}
-                          width={36}
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-1.5">
-                          <p className="truncate font-semibold text-[0.95rem] text-white">
-                            {collaborationDisplayLabel || creatorDisplayName}
-                          </p>
-                          {creatorIsOfficial ? (
-                            <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
-                          ) : null}
-                        </div>
-                        <p className="truncate text-[10px] text-white/78">
-                          {collaboration
-                            ? `${collaboration.activeMemberCount} collaborators`
-                            : creatorHandle}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="relative w-full shrink-0 snap-center overflow-hidden rounded-[1rem] border border-gray-200 bg-white px-1.5 py-1 dark:border-white/8 dark:bg-[#0f0f10]">
-                  <div className="absolute inset-x-0 top-0 h-10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.12),_transparent_60%)] dark:bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_60%)]" />
-                  {chartLoading ? (
-                    <div className="absolute top-3 right-3">
-                      <Spinner size="xs" />
-                    </div>
-                  ) : null}
-                  <div className="relative">
-                    <div className="flex justify-between px-2.5 text-[10px] text-gray-400 dark:text-white/45">
-                      <span>{chartData.highLabel}</span>
-                      <span />
-                    </div>
-
-                    <svg
-                      aria-label={`${coin.name} price chart`}
-                      className="mt-0.5 h-[5.6rem] w-full"
-                      preserveAspectRatio="none"
-                      viewBox="0 0 340 220"
-                    >
-                      <title>{`${coin.name} price chart`}</title>
-                      <defs>
-                        <linearGradient
-                          id="coin-mobile-chart-gradient"
-                          x1="0%"
-                          x2="0%"
-                          y1="0%"
-                          y2="100%"
-                        >
-                          <stop offset="0%" stopColor="rgba(34,197,94,0.34)" />
-                          <stop offset="100%" stopColor="rgba(34,197,94,0)" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d={chartData.areaPath}
-                        fill="url(#coin-mobile-chart-gradient)"
-                      />
-                      <path
-                        d={chartData.linePath}
-                        fill="none"
-                        stroke="#4ADE80"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="4"
-                      />
-                      <circle
-                        cx={chartData.points[chartData.points.length - 1].x}
-                        cy={chartData.points[chartData.points.length - 1].y}
-                        fill="rgba(74,222,128,0.18)"
-                        r="13"
-                      />
-                      <circle
-                        cx={chartData.points[chartData.points.length - 1].x}
-                        cy={chartData.points[chartData.points.length - 1].y}
-                        fill="#4ADE80"
-                        r="6.5"
-                        stroke="#0b0b0b"
-                        strokeWidth="4"
-                      />
-                    </svg>
-
-                    <div className="mt-0.5 flex justify-between px-2.5 text-[10px] text-gray-400 dark:text-white/45">
-                      <span>{chartData.lowLabel}</span>
-                      <span />
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-0.5">
-                        {CHART_RANGES.map((range) => (
-                          <button
-                            className={cn(
-                              "rounded-full px-2 py-1 font-medium text-[9px] transition-colors",
-                              activeRange === range
-                                ? "bg-gray-900 text-white dark:bg-white/10 dark:text-white"
-                                : "text-gray-400 dark:text-white/42"
                             )}
-                            key={range}
-                            onClick={() => setActiveRange(range)}
-                            type="button"
-                          >
-                            {range}
-                          </button>
-                        ))}
+                            <div className="min-w-0">
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <p className="truncate font-semibold text-[0.95rem] text-white">
+                                  {collaborationDisplayLabel ||
+                                    creatorDisplayName}
+                                </p>
+                                {creatorIsOfficial ? (
+                                  <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
+                                ) : null}
+                              </div>
+                              <p className="truncate text-[10px] text-white/78">
+                                {collaboration
+                                  ? `${collaboration.activeMemberCount} collaborators`
+                                  : creatorHandle}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-
-                      <div className="inline-flex h-7 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 text-[9px] dark:border-white/10 dark:bg-white/[0.04]">
-                        <span className="font-medium text-gray-400 uppercase tracking-[0.08em] dark:text-white/45">
-                          Hold
-                        </span>
-                        <span className="font-semibold text-gray-950 dark:text-white">
-                          {formattedHoldingAmount}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                    )}
+                  </Fragment>
+                ))}
               </div>
 
               <div className="mt-2 flex items-center justify-center gap-1.5">
-                {[0, 1].map((index) => (
+                {heroSlides.map((slide, index) => (
                   <button
-                    aria-label={index === 0 ? "Show cover art" : "Show chart"}
+                    aria-label={
+                      slide === "media"
+                        ? "Show creator content"
+                        : slide === "chart"
+                          ? "Show chart"
+                          : "Show cover art"
+                    }
                     className={cn(
                       "h-1.5 rounded-full transition-all",
                       activeHeroSlide === index
@@ -1069,31 +1216,31 @@ const MobileCoinView = ({
         ) : null}
 
         <div className="mt-3 px-3.5" ref={aboutSectionRef}>
-          <div className="flex items-center gap-1.5 border-gray-200 border-b pb-0.5 dark:border-white/8">
-            {(hasFansCorner
-              ? ([
-                  { label: "About", value: "about" },
-                  {
-                    label: `Fans Corner (${nFormatter(liveChatterCount, 1) || "0"})`,
-                    value: "chat"
-                  }
-                ] as const)
-              : ([{ label: "About", value: "about" }] as const)
-            ).map((tab) => (
+          <div className="no-scrollbar -mx-0.5 flex gap-1.5 overflow-x-auto pb-1">
+            {mobileTabs.map((tab) => (
               <button
                 className={cn(
-                  "relative pb-0.5 font-semibold text-[0.82rem] leading-none tracking-tight transition-colors",
+                  "inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1.5 font-semibold text-[11px] leading-none tracking-tight transition-colors",
                   activeTab === tab.value
-                    ? "text-gray-950 dark:text-white"
-                    : "text-gray-400 dark:text-white/40"
+                    ? "border-gray-900 bg-gray-950 text-white dark:border-white dark:bg-white dark:text-black"
+                    : "border-gray-200 bg-white text-gray-500 dark:border-white/8 dark:bg-[#121212] dark:text-white/55"
                 )}
                 key={tab.value}
                 onClick={() => setActiveTab(tab.value)}
                 type="button"
               >
-                {tab.label}
-                {activeTab === tab.value ? (
-                  <span className="absolute inset-x-0 -bottom-[0.32rem] h-0.5 rounded-full bg-gray-950 dark:bg-white" />
+                <span>{tab.label}</span>
+                {tab.count ? (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[9px]",
+                      activeTab === tab.value
+                        ? "bg-white/18 text-white dark:bg-black/10 dark:text-black"
+                        : "bg-gray-100 text-gray-500 dark:bg-white/8 dark:text-white/55"
+                    )}
+                  >
+                    {tab.count}
+                  </span>
                 ) : null}
               </button>
             ))}
@@ -1334,6 +1481,189 @@ const MobileCoinView = ({
               ) : null}
             </section>
           </div>
+        ) : activeTab === "holders" ? (
+          <div className="px-3.5 pt-2.5">
+            <div className="mb-2 flex items-center justify-between gap-3 text-[10px] text-gray-500 dark:text-white/45">
+              <p>{nFormatter(holderCount, 1) || "0"} holders</p>
+              {Number.isFinite(totalSupplyValue) && totalSupplyValue > 0 ? (
+                <p className="truncate text-right">
+                  {nFormatter(totalSupplyValue, 2)} {coin.symbol || "COIN"}{" "}
+                  supply
+                </p>
+              ) : null}
+            </div>
+
+            {holdersLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Spinner size="sm" />
+              </div>
+            ) : holders.length ? (
+              <div className="overflow-hidden rounded-[0.95rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+                <div className="divide-y divide-gray-200 dark:divide-white/8">
+                  {holders.slice(0, 30).map((holder, index) => {
+                    const profilePath = getPublicProfilePath({
+                      address: holder.address,
+                      handle: holder.handle
+                    });
+                    const content = (
+                      <>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="w-4 text-[10px] text-gray-400 dark:text-white/35">
+                            {index + 1}
+                          </span>
+                          <Image
+                            alt={holder.displayName}
+                            className="size-8 rounded-full object-cover"
+                            height={32}
+                            src={holder.avatar}
+                            width={32}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-[11px] text-gray-950 dark:text-white">
+                              {holder.displayName}
+                            </p>
+                            <p className="truncate text-[10px] text-gray-500 dark:text-white/42">
+                              {holder.handle}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          <p className="font-medium text-[11px] text-gray-950 dark:text-white">
+                            {holder.percentage.toFixed(
+                              holder.percentage >= 1 ? 2 : 3
+                            )}
+                            %
+                          </p>
+                          <p className="text-[10px] text-gray-500 dark:text-white/42">
+                            {nFormatter(holder.balance, 3)}
+                          </p>
+                        </div>
+                      </>
+                    );
+
+                    const className =
+                      "flex items-center justify-between gap-3 px-3 py-2.5";
+
+                    return profilePath ? (
+                      <a
+                        className={className}
+                        href={profilePath}
+                        key={holder.address}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <div className={className} key={holder.address}>
+                        {content}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-[0.85rem] bg-white px-3.5 py-3 text-[11px] text-gray-500 dark:bg-[#121212] dark:text-white/55">
+                Holder data is still syncing for this coin.
+              </div>
+            )}
+          </div>
+        ) : activeTab === "activity" ? (
+          <div className="px-3.5 pt-2.5">
+            {chartLoading ? (
+              <div className="flex items-center justify-center py-16">
+                <Spinner size="sm" />
+              </div>
+            ) : recentActivity.length ? (
+              <div className="overflow-hidden rounded-[0.95rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+                <div className="divide-y divide-gray-200 dark:divide-white/8">
+                  {recentActivity.map((activity) => {
+                    const profilePath = getPublicProfilePath({
+                      address: activity.actorAddress,
+                      handle: activity.actorProfileHandle
+                    });
+                    const activityLabel =
+                      activity.activityType === "SELL"
+                        ? "Sell"
+                        : activity.activityType === "BUY"
+                          ? "Buy"
+                          : "Trade";
+                    const activityTone =
+                      activity.activityType === "SELL"
+                        ? "text-rose-500"
+                        : activity.activityType === "BUY"
+                          ? "text-emerald-500"
+                          : "text-gray-500 dark:text-white/55";
+                    const content = (
+                      <>
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <Image
+                            alt={activity.actorHandle}
+                            className="size-8 rounded-full object-cover"
+                            height={32}
+                            src={activity.actorAvatar}
+                            width={32}
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-[11px] text-gray-950 dark:text-white">
+                              {activity.actorHandle}
+                            </p>
+                            <p className="truncate text-[10px] text-gray-500 dark:text-white/42">
+                              {formatUsdMetric(activity.totalUsd)} ·{" "}
+                              {formatRelativeOrAbsolute(activity.timestamp)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid shrink-0 grid-cols-[auto_auto] items-center gap-x-3 text-right">
+                          <span
+                            className={cn(
+                              "font-semibold text-[11px]",
+                              activityTone
+                            )}
+                          >
+                            {activityLabel}
+                          </span>
+                          <span className="font-medium text-[11px] text-gray-950 dark:text-white">
+                            {nFormatter(activity.coinAmount, 3)}
+                          </span>
+                        </div>
+                      </>
+                    );
+
+                    const className =
+                      "flex items-center justify-between gap-3 px-3 py-2.5";
+
+                    return profilePath ? (
+                      <a
+                        className={className}
+                        href={profilePath}
+                        key={activity.id}
+                      >
+                        {content}
+                      </a>
+                    ) : (
+                      <div className={className} key={activity.id}>
+                        {content}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-[0.85rem] bg-white px-3.5 py-3 text-[11px] text-gray-500 dark:bg-[#121212] dark:text-white/55">
+                No trade activity yet.
+              </div>
+            )}
+          </div>
+        ) : activeTab === "fandrop" ? (
+          <div className="px-3.5 pt-2.5">
+            <CoinFanDropPanel
+              campaigns={fanDropCampaigns}
+              compact
+              creatorName={creatorDisplayName}
+              loading={fanDropsLoading}
+            />
+          </div>
         ) : (
           <div className="px-3.5 pt-2.5">
             {canJoinFansCorner ? null : (
@@ -1390,37 +1720,7 @@ const MobileCoinView = ({
       </div>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+3.3rem)] z-20 px-3.5 md:hidden">
-        {activeTab === "about" ? (
-          <div className="pointer-events-auto rounded-[1rem] border border-gray-200/80 bg-white/88 p-2 shadow-[0_10px_28px_-20px_rgba(15,23,42,0.35)] backdrop-blur-xl dark:border-white/8 dark:bg-[#090909]/88 dark:shadow-[0_10px_28px_-20px_rgba(0,0,0,0.95)]">
-            <div className="flex items-center gap-2">
-              <button
-                className="flex h-[2.125rem] flex-1 items-center justify-center rounded-[0.8rem] bg-emerald-600 font-semibold text-[11px] text-white shadow-sm dark:shadow-none"
-                onClick={() => setTradeMode("sell")}
-                type="button"
-              >
-                Sell
-              </button>
-              <button
-                className="flex h-[2.125rem] flex-1 items-center justify-center rounded-[0.8rem] bg-emerald-500 font-semibold text-[11px] text-white shadow-sm dark:shadow-none"
-                onClick={() => setTradeMode("buy")}
-                type="button"
-              >
-                Buy
-              </button>
-              {hasFansCorner ? (
-                <button
-                  aria-label="Open Fans Corner"
-                  className="inline-flex size-[2.125rem] items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm dark:shadow-none"
-                  onClick={openFansCorner}
-                  title="Open Fans Corner"
-                  type="button"
-                >
-                  <ChatBubbleOvalLeftEllipsisIcon className="size-4" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : (
+        {activeTab === "chat" ? (
           <div className="pointer-events-auto rounded-[0.95rem] border border-gray-200/80 bg-white/88 p-1.5 shadow-[0_10px_28px_-20px_rgba(15,23,42,0.35)] backdrop-blur-xl dark:border-white/8 dark:bg-[#090909]/88 dark:shadow-[0_10px_28px_-20px_rgba(0,0,0,0.95)]">
             <div className="space-y-1.5">
               <button
@@ -1461,6 +1761,36 @@ const MobileCoinView = ({
                   )}
                 </button>
               </form>
+            </div>
+          </div>
+        ) : (
+          <div className="pointer-events-auto rounded-[1rem] border border-gray-200/80 bg-white/88 p-2 shadow-[0_10px_28px_-20px_rgba(15,23,42,0.35)] backdrop-blur-xl dark:border-white/8 dark:bg-[#090909]/88 dark:shadow-[0_10px_28px_-20px_rgba(0,0,0,0.95)]">
+            <div className="flex items-center gap-2">
+              <button
+                className="flex h-[2.125rem] flex-1 items-center justify-center rounded-[0.8rem] bg-emerald-600 font-semibold text-[11px] text-white shadow-sm dark:shadow-none"
+                onClick={() => setTradeMode("sell")}
+                type="button"
+              >
+                Sell
+              </button>
+              <button
+                className="flex h-[2.125rem] flex-1 items-center justify-center rounded-[0.8rem] bg-emerald-500 font-semibold text-[11px] text-white shadow-sm dark:shadow-none"
+                onClick={() => setTradeMode("buy")}
+                type="button"
+              >
+                Buy
+              </button>
+              {hasFansCorner ? (
+                <button
+                  aria-label="Open Fans Corner"
+                  className="inline-flex size-[2.125rem] items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm dark:shadow-none"
+                  onClick={openFansCorner}
+                  title="Open Fans Corner"
+                  type="button"
+                >
+                  <ChatBubbleOvalLeftEllipsisIcon className="size-4" />
+                </button>
+              ) : null}
             </div>
           </div>
         )}

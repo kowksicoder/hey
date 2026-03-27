@@ -9,6 +9,7 @@ import { createFanDropRuntime } from "./script/fandropRuntime.mjs";
 import { createFiatRuntime } from "./script/fiatRuntime.mjs";
 import { createProfileShareRuntime } from "./script/profileShareRuntime.mjs";
 import { createPushRuntime } from "./script/pushRuntime.mjs";
+import { createReferralRuntime } from "./script/referralRuntime.mjs";
 import { createVerificationRuntime } from "./script/verificationRuntime.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,6 +19,7 @@ const fanDropRuntime = createFanDropRuntime({ rootDir: __dirname });
 const fiatRuntime = createFiatRuntime({ rootDir: __dirname });
 const profileShareRuntime = createProfileShareRuntime({ rootDir: __dirname });
 const pushRuntime = createPushRuntime({ rootDir: __dirname });
+const referralRuntime = createReferralRuntime({ rootDir: __dirname });
 const verificationRuntime = createVerificationRuntime({ rootDir: __dirname });
 
 export default defineConfig({
@@ -31,6 +33,7 @@ export default defineConfig({
         fanDropRuntime.start();
         fiatRuntime.start();
         pushRuntime.start();
+        referralRuntime.start();
         verificationRuntime.start();
         server.middlewares.use(async (request, response, next) => {
           const collaborationHandled =
@@ -64,6 +67,15 @@ export default defineConfig({
           );
 
           if (profileShareHandled) {
+            return;
+          }
+
+          const referralHandled = await referralRuntime.handleApiRequest(
+            request,
+            response
+          );
+
+          if (referralHandled) {
             return;
           }
 

@@ -129,6 +129,60 @@
     scrollbar-width: none;
   }
 
+  .thin-scrollbar {
+    scrollbar-color: color-mix(in srgb, #94a3b8 58%, transparent) transparent;
+    scrollbar-width: thin;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, #94a3b8 58%, transparent);
+    border-radius: 999px;
+  }
+
+  .dark .thin-scrollbar {
+    scrollbar-color: color-mix(in srgb, #64748b 48%, transparent) transparent;
+  }
+
+  .dark .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, #64748b 48%, transparent);
+  }
+
+  .ultra-thin-scrollbar {
+    scrollbar-color: color-mix(in srgb, #94a3b8 46%, transparent) transparent;
+    scrollbar-width: thin;
+  }
+
+  .ultra-thin-scrollbar::-webkit-scrollbar {
+    width: 2px;
+    height: 2px;
+  }
+
+  .ultra-thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .ultra-thin-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, #94a3b8 46%, transparent);
+    border-radius: 999px;
+  }
+
+  .dark .ultra-thin-scrollbar {
+    scrollbar-color: color-mix(in srgb, #64748b 40%, transparent) transparent;
+  }
+
+  .dark .ultra-thin-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, #64748b 40%, transparent);
+  }
+
   .no-spinner::-webkit-inner-spin-button,
   .no-spinner::-webkit-outer-spin-button {
     margin: 0;

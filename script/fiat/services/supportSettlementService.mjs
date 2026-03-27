@@ -4,7 +4,8 @@ import { asMoney, assert } from "../utils.mjs";
 import {
   getWalletOverviewRow,
   insertFiatLedgerEntryIfMissing,
-  logFiatEvent
+  logFiatEvent,
+  recordReferralTradeRewardIfEligible
 } from "./serviceHelpers.mjs";
 
 const toEthAmountString = (amountNaira, ethNgnPrice) => {
@@ -32,8 +33,16 @@ export const createSupportSettlementService = ({
   platformAccount = null,
   publicClient = null,
   supabase,
+  telegramService = null,
   walletClient = null
 }) => {
+  let telegramServiceRef = telegramService;
+  const resolveExecutionWalletAddress = (profile, transaction) =>
+    transaction.metadata?.recipientWalletAddress ||
+    transaction.metadata?.walletAddress ||
+    profile.execution_wallet_address ||
+    profile.wallet_address;
+
   const isEnabled = () =>
     Boolean(
       executionEnabled &&
@@ -219,6 +228,59 @@ export const createSupportSettlementService = ({
       });
     });
 
+    await recordReferralTradeRewardIfEligible({
+      coinAddress: transaction.coin_address,
+      coinSymbol: transaction.coin_symbol || coinLabel(transaction),
+      profileId: profile.id,
+      supabase,
+      tradeAmountIn: Number(settledEthAmount || 0),
+      tradeAmountOut: Number(transaction.estimated_coin_amount || 0),
+      tradeSide: "buy",
+      txHash
+    }).catch((rewardError) => {
+      logFiatEvent("support.referral_reward_failed", {
+        error:
+          rewardError instanceof Error
+            ? rewardError.message
+            : "Unknown referral reward error",
+        profileId: profile.id,
+        supportId: transaction.id,
+        txHash
+      });
+    });
+
+    if (
+      nextTransaction.status === "completed" &&
+      telegramServiceRef?.isEnabled()
+    ) {
+      await telegramServiceRef
+        .announceTrade({
+          coinAddress: transaction.coin_address,
+          coinName: transaction.coin_symbol || coinLabel(transaction),
+          coinSymbol: transaction.coin_symbol,
+          nairaAmount: asMoney(transaction.naira_amount_kobo),
+          profile,
+          source: "naira_buy",
+          tokenAmount:
+            transaction.estimated_coin_amount_raw ||
+            transaction.estimated_coin_amount ||
+            null,
+          tradeSide: "buy",
+          transactionHash: txHash
+        })
+        .catch((telegramError) => {
+          logFiatEvent("support.telegram_failed", {
+            error:
+              telegramError instanceof Error
+                ? telegramError.message
+                : "Unknown telegram announcement error",
+            profileId: profile.id,
+            supportId: transaction.id,
+            txHash
+          });
+        });
+    }
+
     logFiatEvent("support.settlement_completed", {
       ethNgnPrice,
       profileId: profile.id,
@@ -311,8 +373,10 @@ export const createSupportSettlementService = ({
       503
     );
 
-    const recipientWalletAddress =
-      transaction.metadata?.walletAddress || profile.wallet_address;
+    const recipientWalletAddress = resolveExecutionWalletAddress(
+      profile,
+      transaction
+    );
 
     assert(
       recipientWalletAddress && isAddress(recipientWalletAddress),
@@ -437,10 +501,10 @@ export const createSupportSettlementService = ({
       };
     }
 
-    const recipientWalletAddress =
-      transaction.metadata?.recipientWalletAddress ||
-      transaction.metadata?.walletAddress ||
-      profile.wallet_address;
+    const recipientWalletAddress = resolveExecutionWalletAddress(
+      profile,
+      transaction
+    );
     assert(
       recipientWalletAddress && isAddress(recipientWalletAddress),
       "A valid recipient wallet is required for buy trade reconciliation.",
@@ -472,6 +536,9 @@ export const createSupportSettlementService = ({
   return {
     isEnabled,
     reconcileSupportTransaction,
+    setTelegramService(nextTelegramService) {
+      telegramServiceRef = nextTelegramService;
+    },
     settleSupportTransaction
   };
 };

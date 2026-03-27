@@ -2,6 +2,30 @@ import type { User } from "@privy-io/react-auth";
 import type { AccountFragment } from "@/indexer/generated";
 import type { Every1Profile } from "@/types/every1";
 
+export const PRIMARY_AUTH_LOGIN_METHODS = ["email", "telegram"] as const;
+
+const normalizeCoinbaseRpcUrl = (value?: null | string) => {
+  const trimmed = value?.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://api.developer.coinbase.com/rpc/v1/base/${trimmed}`;
+};
+
+type PrivyWalletAccount = {
+  address?: string;
+  chainType?: string;
+  connectorType?: null | string;
+  type?: string;
+  walletClientType?: null | string;
+};
+
 type Every1ProfileLike = Pick<
   Every1Profile,
   | "avatarUrl"
@@ -16,6 +40,7 @@ type Every1ProfileLike = Pick<
   | "walletAddress"
   | "zoraHandle"
 > &
+  Partial<Pick<Every1Profile, "executionWalletAddress">> &
   Partial<
     Pick<
       Every1Profile,
@@ -35,13 +60,60 @@ const sanitizeUsername = (value?: null | string) => {
 export const hasPrivyConfig = () =>
   Boolean(import.meta.env.VITE_PRIVY_APP_ID as string | undefined);
 
+export const getBaseSmartWalletEndpoint = () =>
+  normalizeCoinbaseRpcUrl(
+    (import.meta.env.VITE_BASE_SMART_WALLET_RPC_URL as string | undefined) ||
+      (import.meta.env.VITE_BASE_PAYMASTER_RPC_URL as string | undefined)
+  );
+
+export const hasBaseSmartWalletConfig = () =>
+  Boolean(getBaseSmartWalletEndpoint());
+
+const isPrivyEmbeddedWalletAccount = (account?: null | PrivyWalletAccount) => {
+  if (!account?.address || account.type !== "wallet") {
+    return false;
+  }
+
+  if (account.chainType && account.chainType !== "ethereum") {
+    return false;
+  }
+
+  return (
+    account.walletClientType === "privy" ||
+    account.walletClientType === "privy-v2" ||
+    account.connectorType === "embedded" ||
+    account.connectorType === "embedded_imported"
+  );
+};
+
+export const getPrivyEmbeddedWalletAddress = (user?: null | User) => {
+  if (!user) {
+    return null;
+  }
+
+  const embeddedWallet = (user.linkedAccounts as PrivyWalletAccount[]).find(
+    isPrivyEmbeddedWalletAccount
+  );
+
+  return embeddedWallet?.address || null;
+};
+
 export const getPrivyWalletAddress = (user?: null | User) => {
   if (!user) {
     return null;
   }
 
-  if (user.wallet?.address) {
-    return user.wallet.address;
+  const embeddedWalletAddress = getPrivyEmbeddedWalletAddress(user);
+
+  if (embeddedWalletAddress) {
+    return embeddedWalletAddress;
+  }
+
+  const primaryWalletAddress =
+    "address" in (user.wallet || {}) ? user.wallet?.address : null;
+
+  if (primaryWalletAddress) {
+    return primaryWalletAddress;
   }
 
   const linkedWallet = user.linkedAccounts.find(

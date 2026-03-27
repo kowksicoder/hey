@@ -115,13 +115,14 @@ export const EVERY1_ACTIVE_EVENT_POPUP_QUERY_KEY = "every1-active-event-popup";
 export const EVERY1_COIN_CHAT_QUERY_KEY = "every1-coin-chat";
 
 const PUBLIC_PROFILE_SELECT =
-  "id, username, display_name, bio, avatar_url, banner_url, wallet_address, lens_account_address, zora_handle, verification_status, verification_category, verified_at";
+  "id, username, display_name, bio, avatar_url, banner_url, wallet_address, execution_wallet_address, lens_account_address, zora_handle, verification_status, verification_category, verified_at";
 
 type PublicProfileRow = {
   avatar_url: null | string;
   banner_url: null | string;
   bio: null | string;
   display_name: null | string;
+  execution_wallet_address: null | string;
   id: string;
   lens_account_address: null | string;
   username: null | string;
@@ -187,6 +188,7 @@ type FollowListRow = {
   banner_url: null | string;
   bio: null | string;
   display_name: null | string;
+  execution_wallet_address?: null | string;
   followed_at: string;
   id: string;
   lens_account_address: null | string;
@@ -540,6 +542,7 @@ const mapProfileRow = (
   bio: row.bio,
   displayName: row.display_name,
   e1xpTotal: extras?.e1xpTotal || 0,
+  executionWalletAddress: row.execution_wallet_address,
   id: row.id,
   lensAccountAddress: row.lens_account_address,
   referralCode: extras?.referralCode || null,

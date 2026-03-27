@@ -24,8 +24,6 @@ import {
   parseUnits
 } from "viem";
 import { base } from "viem/chains";
-import { useAccount, useConfig, useWalletClient } from "wagmi";
-import { getWalletClient } from "wagmi/actions";
 import {
   ActionStatusModal,
   Button,
@@ -45,6 +43,10 @@ import {
   recordReferralTradeReward
 } from "@/helpers/every1";
 import {
+  getExecutionWalletStatus,
+  toViemWalletClient
+} from "@/helpers/executionWallet";
+import {
   executeSell,
   executeSupport,
   getSellQuote,
@@ -55,6 +57,8 @@ import {
   normalizeFiatUiError
 } from "@/helpers/fiatUi";
 import { formatNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import { announceTelegramTrade } from "@/helpers/telegramAnnouncements";
+import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import useHandleWrongNetwork from "@/hooks/useHandleWrongNetwork";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
 
@@ -90,12 +94,18 @@ const Trade = ({
   onClose,
   variant = "modal"
 }: TradeModalProps) => {
-  const { address } = useAccount();
-  const config = useConfig();
   const queryClient = useQueryClient();
   const { profile } = useEvery1Store();
-  const { data: walletClient } = useWalletClient({ chainId: base.id });
-  const { data: signingWalletClient } = useWalletClient();
+  const {
+    executionWalletAddress,
+    executionWalletClient,
+    identityWalletAddress,
+    identityWalletClient,
+    isLinkingExecutionWallet,
+    smartWalletEnabled,
+    smartWalletError,
+    smartWalletLoading
+  } = useEvery1ExecutionWallet();
   const publicClient = useMemo(
     () =>
       createPublicClient({
@@ -118,15 +128,26 @@ const Trade = ({
   const [ethBalance, setEthBalance] = useState<bigint>(0n);
   const [tokenBalance, setTokenBalance] = useState<bigint>(0n);
   const [estimatedOut, setEstimatedOut] = useState<string>("");
-  const tradeWalletAddress = useMemo(() => {
-    const candidate =
-      address ||
-      walletClient?.account?.address ||
-      signingWalletClient?.account?.address ||
-      null;
+  const tradeWalletAddress = useMemo(
+    () =>
+      executionWalletAddress && isAddress(executionWalletAddress)
+        ? executionWalletAddress
+        : undefined,
+    [executionWalletAddress]
+  );
+  const fiatWalletAddress = useMemo(() => {
+    const candidate = identityWalletAddress || profile?.walletAddress;
     return candidate && isAddress(candidate) ? candidate : undefined;
-  }, [address, signingWalletClient?.account?.address, walletClient]);
-  const fiatWalletClient = signingWalletClient || walletClient;
+  }, [identityWalletAddress, profile?.walletAddress]);
+  const fiatWalletClient = identityWalletClient || null;
+  const executionWalletStatus = getExecutionWalletStatus({
+    executionWalletAddress,
+    executionWalletClient,
+    isLinkingExecutionWallet,
+    smartWalletEnabled,
+    smartWalletError,
+    smartWalletLoading
+  });
 
   useEffect(() => {
     (async () => {
@@ -219,8 +240,10 @@ const Trade = ({
   const isFiatRail = tradeRail === "fiat";
 
   const handleFiatQuote = async () => {
-    if (!profile?.id || !fiatWalletClient?.account || !tradeWalletAddress) {
-      toast.error("Connect your wallet to continue.");
+    if (!profile?.id || !fiatWalletClient?.account || !fiatWalletAddress) {
+      toast.error(
+        "Preparing your Every1 wallet. Please try again in a moment."
+      );
       return;
     }
 
@@ -248,7 +271,7 @@ const Trade = ({
           idempotencyKey: createFiatIdempotencyKey("support-quote"),
           nairaAmount: parsedAmount,
           profileId: profile.id,
-          walletAddress: tradeWalletAddress,
+          walletAddress: fiatWalletAddress,
           walletClient: fiatWalletClient
         });
 
@@ -269,7 +292,7 @@ const Trade = ({
           coinAmount: parsedAmount,
           idempotencyKey: createFiatIdempotencyKey("sell-quote"),
           profileId: profile.id,
-          walletAddress: tradeWalletAddress,
+          walletAddress: fiatWalletAddress,
           walletClient: fiatWalletClient
         });
 
@@ -303,8 +326,10 @@ const Trade = ({
   };
 
   const handleFiatSubmit = async () => {
-    if (!profile?.id || !fiatWalletClient?.account || !tradeWalletAddress) {
-      toast.error("Connect your wallet to continue.");
+    if (!profile?.id || !fiatWalletClient?.account || !fiatWalletAddress) {
+      toast.error(
+        "Preparing your Every1 wallet. Please try again in a moment."
+      );
       return;
     }
 
@@ -333,7 +358,7 @@ const Trade = ({
               idempotencyKey: createFiatIdempotencyKey("support-execute"),
               profileId: profile.id,
               quoteId: fiatQuote.quoteId,
-              walletAddress: tradeWalletAddress,
+              walletAddress: fiatWalletAddress,
               walletClient: fiatWalletClient
             })
           : await (async () => {
@@ -346,12 +371,13 @@ const Trade = ({
               }
 
               await handleWrongNetwork({ chainId: base.id });
-              const client =
-                (await getWalletClient(config, { chainId: base.id })) ||
-                walletClient;
+              const client = toViemWalletClient(executionWalletClient);
 
               if (!client?.account) {
-                throw new Error("Connect a Base wallet to complete this sell.");
+                throw new Error(
+                  executionWalletStatus.message ||
+                    "Preparing your Every1 wallet on Base."
+                );
               }
 
               const transferHash = await client.writeContract({
@@ -362,6 +388,7 @@ const Trade = ({
                   settlement.address,
                   BigInt(settlement.transferAmountRaw)
                 ],
+                chain: base,
                 functionName: "transfer"
               });
 
@@ -382,7 +409,7 @@ const Trade = ({
                 profileId: profile.id,
                 quoteId: fiatQuote.quoteId,
                 transactionHash: transferHash,
-                walletAddress: tradeWalletAddress,
+                walletAddress: fiatWalletAddress,
                 walletClient: fiatWalletClient
               });
             })();
@@ -453,8 +480,10 @@ const Trade = ({
       return;
     }
 
-    if (!tradeWalletAddress) {
-      return toast.error("Connect a wallet to trade");
+    if (!executionWalletStatus.isReady || !tradeWalletAddress) {
+      return toast.error(
+        executionWalletStatus.message || "Preparing your Every1 wallet on Base."
+      );
     }
 
     const params = makeParams(tradeWalletAddress);
@@ -469,12 +498,14 @@ const Trade = ({
       });
       umami.track("trade_creator_coin", { mode });
       await handleWrongNetwork({ chainId: base.id });
-      const client =
-        (await getWalletClient(config, { chainId: base.id })) || walletClient;
+      const client = toViemWalletClient(executionWalletClient);
       if (!client) {
         setLoading(false);
         setTradeStatusModal(null);
-        return toast.error("Please switch to Base network");
+        return toast.error(
+          executionWalletStatus.message ||
+            "Preparing your Every1 wallet on Base."
+        );
       }
 
       const receipt = await tradeCoin({
@@ -489,6 +520,37 @@ const Trade = ({
         title: "Nice trade!",
         tone: "success"
       });
+
+      if (profile?.id && fiatWalletAddress && fiatWalletClient?.account) {
+        const tokenAmount =
+          mode === "buy"
+            ? estimatedOut
+              ? Number(formatUnits(BigInt(estimatedOut), tokenDecimals))
+              : null
+            : Number(amount);
+        const ethAmount =
+          mode === "buy"
+            ? amount
+            : estimatedOut
+              ? formatEther(BigInt(estimatedOut))
+              : null;
+
+        await announceTelegramTrade({
+          coinAddress: coin.address,
+          coinName: coin.name,
+          coinSymbol: coin.symbol || null,
+          ethAmount,
+          profileId: profile.id,
+          source: isPageVariant ? "coin_page" : "coin_trade",
+          tokenAmount,
+          tradeSide: mode,
+          transactionHash: receipt.transactionHash,
+          walletAddress: fiatWalletAddress,
+          walletClient: fiatWalletClient
+        }).catch((error) => {
+          console.error("Failed to announce creator coin trade", error);
+        });
+      }
 
       if (profile?.id) {
         try {
@@ -803,7 +865,12 @@ const Trade = ({
         minute: "2-digit"
       })}`
     : null;
-  const mobileSummaryText = fiatQuoteError || fiatQuote?.summary || "";
+  const mobileSummaryText =
+    fiatQuoteError ||
+    fiatQuote?.summary ||
+    (!fiatWalletClient?.account || !executionWalletStatus.isReady
+      ? executionWalletStatus.message || "Preparing your Every1 wallet."
+      : "");
   const submitLabel = loading
     ? mode === "buy"
       ? isFiatRail
@@ -817,23 +884,32 @@ const Trade = ({
         ? mode === "buy"
           ? "Confirm buy"
           : "Confirm sell"
-        : fiatQuoteLoading
-          ? "Getting quote..."
-          : "Get quote"
-      : mode === "buy"
-        ? "Buy"
-        : "Sell";
+        : fiatWalletClient?.account
+          ? fiatQuoteLoading
+            ? "Getting quote..."
+            : "Get quote"
+          : "Preparing wallet..."
+      : executionWalletStatus.isReady
+        ? mode === "buy"
+          ? "Buy"
+          : "Sell"
+        : "Preparing wallet...";
   const canSubmit = isFiatRail
     ? Boolean(
         profile?.id &&
-          tradeWalletAddress &&
+          fiatWalletAddress &&
           fiatWalletClient?.account &&
           hasValidAmount &&
           hasEnoughTokenToSell &&
           !loading &&
           !fiatQuoteLoading
       )
-    : Boolean(amount && tradeWalletAddress && !loading);
+    : Boolean(
+        amount &&
+          tradeWalletAddress &&
+          executionWalletStatus.isReady &&
+          !loading
+      );
 
   if (isMobileVariant) {
     const displayAmount = amount || "0";

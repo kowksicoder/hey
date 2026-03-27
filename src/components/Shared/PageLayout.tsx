@@ -37,6 +37,7 @@ interface PageLayoutProps {
   hideDesktopSidebar?: boolean;
   hideSearch?: boolean;
   mobileFullscreen?: boolean;
+  preferDrawerSearch?: boolean;
   type?: MetaTagsProps["type"];
   url?: MetaTagsProps["url"];
   zeroTopMargin?: boolean;
@@ -52,6 +53,7 @@ const PageLayout = ({
   hideDesktopSidebar = false,
   hideSearch = false,
   mobileFullscreen = false,
+  preferDrawerSearch = false,
   type,
   url,
   zeroTopMargin = false
@@ -89,7 +91,7 @@ const PageLayout = ({
           )}
         >
           <AuthButtons />
-          {!hideSearch && <Search />}
+          {!hideSearch && !preferDrawerSearch ? <Search /> : null}
           {sidebar}
         </aside>
       )}

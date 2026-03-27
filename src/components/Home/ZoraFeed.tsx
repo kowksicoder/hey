@@ -20,6 +20,7 @@ import {
   fetchPlatformDiscoverCoins,
   mergePriorityItemsByAddress
 } from "@/helpers/platformDiscovery";
+import useDesktopSidebarCollapsed from "@/hooks/useDesktopSidebarCollapsed";
 import useLoadMoreOnIntersect from "@/hooks/useLoadMoreOnIntersect";
 import { useHomeTabStore } from "@/store/persisted/useHomeTabStore";
 import WhoToFollowFeedBlock from "./WhoToFollowFeedBlock";
@@ -73,6 +74,7 @@ const ZoraFeed = () => {
     null
   );
   const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const isDesktopSidebarCollapsed = useDesktopSidebarCollapsed();
   const isGridView = viewMode === HomeFeedView.GRID;
   const shouldRenderMobileReel = isMobileViewport && !isGridView;
 
@@ -306,7 +308,12 @@ const ZoraFeed = () => {
   }, []);
 
   if (isLoading) {
-    return <ZoraFeedShimmer viewMode={viewMode} />;
+    return (
+      <ZoraFeedShimmer
+        isDesktopSidebarCollapsed={isDesktopSidebarCollapsed}
+        viewMode={viewMode}
+      />
+    );
   }
 
   if (error) {
@@ -343,7 +350,12 @@ const ZoraFeed = () => {
         className={cn(
           "min-w-0 overflow-x-hidden pb-5",
           isGridView
-            ? "grid grid-cols-2 gap-2 px-3 md:grid-cols-4 md:gap-2.5 md:px-0 lg:grid-cols-6"
+            ? cn(
+                "grid grid-cols-2 gap-2 px-3 md:grid-cols-4 md:gap-2.5 md:px-0",
+                isDesktopSidebarCollapsed
+                  ? "lg:grid-cols-6"
+                  : "lg:grid-cols-5 xl:grid-cols-6"
+              )
             : "space-y-3"
         )}
       >

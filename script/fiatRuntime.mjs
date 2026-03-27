@@ -7,10 +7,12 @@ import { authenticateFiatRequest } from "./fiat/auth.mjs";
 import { createFlutterwaveClient } from "./fiat/integrations/flutterwave.mjs";
 import { createMarketPriceClient } from "./fiat/integrations/marketPrice.mjs";
 import { createCreatorService } from "./fiat/services/creatorService.mjs";
+import { createExecutionWalletService } from "./fiat/services/executionWalletService.mjs";
 import { createSellService } from "./fiat/services/sellService.mjs";
 import { createSellSettlementService } from "./fiat/services/sellSettlementService.mjs";
 import { createSupportService } from "./fiat/services/supportService.mjs";
 import { createSupportSettlementService } from "./fiat/services/supportSettlementService.mjs";
+import { createTelegramService } from "./fiat/services/telegramService.mjs";
 import { createWalletService } from "./fiat/services/walletService.mjs";
 import { createWebhookService } from "./fiat/services/webhookService.mjs";
 import {
@@ -112,6 +114,7 @@ export const createFiatRuntime = ({ rootDir }) => {
         platformAccount,
         publicClient,
         supabase,
+        telegramService: null,
         walletClient: platformWalletClient
       })
     : null;
@@ -119,15 +122,38 @@ export const createFiatRuntime = ({ rootDir }) => {
     ? createSellSettlementService({
         publicClient,
         settlementAddress: platformAccount?.address || null,
-        supabase
+        supabase,
+        telegramService: null
       })
     : null;
+  const telegramService = runtimeEnabled
+    ? createTelegramService({
+        appOrigin: getAppOrigin(),
+        marketPriceClient,
+        supabase,
+        telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || null,
+        telegramChannelId: process.env.TELEGRAM_CHANNEL_ID || null
+      })
+    : null;
+
+  if (supportSettlementService) {
+    supportSettlementService.setTelegramService(telegramService);
+  }
+
+  if (sellSettlementService) {
+    sellSettlementService.setTelegramService(telegramService);
+  }
 
   const walletService = runtimeEnabled
     ? createWalletService({
         appOrigin: getAppOrigin(),
         flutterwave,
         flutterwaveConfigured,
+        supabase
+      })
+    : null;
+  const executionWalletService = runtimeEnabled
+    ? createExecutionWalletService({
         supabase
       })
     : null;
@@ -182,6 +208,7 @@ export const createFiatRuntime = ({ rootDir }) => {
       pathname.startsWith("/api/wallet/") ||
       pathname.startsWith("/api/support/") ||
       pathname.startsWith("/api/sell/") ||
+      pathname.startsWith("/api/telegram/") ||
       pathname.startsWith("/api/creators/") ||
       pathname.startsWith("/api/creator-coins/") ||
       pathname === "/api/payments/webhook" ||
@@ -209,6 +236,22 @@ export const createFiatRuntime = ({ rootDir }) => {
         const { profile } = await withAuth(request);
         const payload = await walletService.getWallet({
           profileId: profile.id
+        });
+        jsonResponse(response, 200, payload);
+        return true;
+      }
+
+      if (request.method === "POST" && pathname === "/api/wallet/execution") {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const { authenticatedWalletAddress, profile } = await withAuth(
+          request,
+          rawBody
+        );
+        const payload = await executionWalletService.linkExecutionWallet({
+          authenticatedWalletAddress,
+          body,
+          profile
         });
         jsonResponse(response, 200, payload);
         return true;
@@ -296,6 +339,46 @@ export const createFiatRuntime = ({ rootDir }) => {
           profile
         });
         jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/telegram/coin-launch"
+      ) {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const { profile } = await withAuth(request, rawBody);
+        const payload = await telegramService.announceCoinLaunch({
+          category: body.category || null,
+          coinAddress: body.coinAddress,
+          coinName: body.coinName,
+          coinSymbol: body.coinSymbol,
+          launchType: body.launchType || "creator",
+          profile
+        });
+        jsonResponse(response, 200, payload);
+        return true;
+      }
+
+      if (request.method === "POST" && pathname === "/api/telegram/trade") {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const { profile } = await withAuth(request, rawBody);
+        const payload = await telegramService.announceTrade({
+          coinAddress: body.coinAddress,
+          coinName: body.coinName,
+          coinSymbol: body.coinSymbol,
+          ethAmount: body.ethAmount || null,
+          nairaAmount: body.nairaAmount || null,
+          profile,
+          source: body.source || null,
+          tokenAmount: body.tokenAmount || null,
+          tokenAmountLabel: body.tokenAmountLabel || null,
+          tradeSide: body.tradeSide,
+          transactionHash: body.transactionHash
+        });
+        jsonResponse(response, 200, payload);
         return true;
       }
 

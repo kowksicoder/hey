@@ -1,9 +1,4 @@
-import {
-  ArrowDownTrayIcon,
-  ArrowsRightLeftIcon,
-  ArrowUpIcon,
-  ChevronRightIcon
-} from "@heroicons/react/24/outline";
+import { ChevronRightIcon } from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
@@ -30,7 +25,6 @@ import { formatNaira } from "@/helpers/formatNaira";
 import getTokenImage from "@/helpers/getTokenImage";
 import useEnsureIndexerAuth from "@/hooks/useEnsureIndexerAuth";
 import { useBalancesBulkQuery } from "@/indexer/generated";
-import { useFundModalStore } from "@/store/non-persisted/modal/useFundModalStore";
 import { useAccountStore } from "@/store/persisted/useAccountStore";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
 import FiatWalletPanel from "./FiatWalletPanel";
@@ -38,7 +32,7 @@ import Unwrap from "./Unwrap";
 import Withdraw from "./Withdraw";
 import Wrap from "./Wrap";
 
-type FundsTab = "activity" | "coins" | "collectibles";
+type FundsTab = "collectibles" | "history" | "tokens";
 
 interface FundsAsset {
   amount: number;
@@ -56,9 +50,6 @@ const CASH_BALANCE_PRICES: Record<string, number> = {
   [NATIVE_TOKEN_SYMBOL]: 1,
   [WRAPPED_NATIVE_TOKEN_SYMBOL]: 1
 };
-
-const heroActionClassName =
-  "inline-flex min-h-0 items-center justify-center gap-1.5 rounded-full bg-gray-100 px-3 py-2.5 text-center text-gray-900 transition hover:bg-gray-200 dark:bg-[#1d1d1d] dark:text-white dark:hover:bg-[#262626] md:gap-2 md:px-4 md:py-2.5";
 
 const modalActionClassName =
   "w-full !rounded-2xl !border-gray-200 !bg-gray-100 !py-2.5 !font-semibold !text-gray-900 hover:!border-gray-300 hover:!bg-gray-200 dark:!border-white/12 dark:!bg-white/6 dark:!text-white dark:hover:!border-white/20 dark:hover:!bg-white/10";
@@ -142,14 +133,6 @@ interface AssetActionsModalProps {
   asset: FundsAsset | null;
   onClose: () => void;
   refetch: () => void;
-}
-
-interface DepositFundsModalProps {
-  onClose: () => void;
-  onDeposit: (amount: number) => void;
-  selectedAmount: number;
-  setSelectedAmount: (amount: number) => void;
-  show: boolean;
 }
 
 const AssetActionsModal = ({
@@ -251,73 +234,6 @@ const AssetActionsModal = ({
           </div>
         </div>
       ) : null}
-    </Modal>
-  );
-};
-
-const DepositFundsModal = ({
-  onClose,
-  onDeposit,
-  selectedAmount,
-  setSelectedAmount,
-  show
-}: DepositFundsModalProps) => {
-  return (
-    <Modal onClose={onClose} show={show} size="xs">
-      <div className="space-y-2.5 bg-white p-3.5 text-gray-900 md:space-y-3 md:p-4 dark:bg-[#111111] dark:text-white">
-        <div>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-semibold text-lg md:text-xl">Deposit funds</p>
-              <p className="mt-1 text-gray-500 text-xs dark:text-gray-400">
-                Add funds to your wallet.
-              </p>
-            </div>
-            <button
-              className="inline-flex size-7 items-center justify-center rounded-full text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 md:size-8 dark:text-gray-400 dark:hover:bg-white/8 dark:hover:text-white"
-              onClick={onClose}
-              type="button"
-            >
-              <ChevronRightIcon className="size-4 rotate-45" />
-            </button>
-          </div>
-
-          <button
-            className="mt-2.5 flex w-full items-center justify-between rounded-[1rem] bg-gray-100 px-3 py-2.5 text-left md:mt-3 md:rounded-[1.15rem] md:px-3.5 md:py-3 dark:bg-[#23242b]"
-            onClick={() => onDeposit(selectedAmount)}
-            type="button"
-          >
-            <span className="font-semibold text-xl md:text-2xl">
-              {formatCurrency(selectedAmount)}
-            </span>
-            <ChevronRightIcon className="size-4 text-gray-500 md:size-5 dark:text-gray-400" />
-          </button>
-
-          <div className="mt-2 grid grid-cols-3 gap-1.5 md:mt-3 md:gap-2">
-            {[5, 10, 50].map((amount) => (
-              <button
-                className={cn(
-                  "rounded-full bg-gray-100 px-2.5 py-1.5 font-semibold text-xs transition hover:bg-gray-200 md:px-3 md:py-2 md:text-sm dark:bg-[#23242b] dark:hover:bg-[#2b2d35]",
-                  selectedAmount === amount && "bg-gray-200 dark:bg-[#2f313a]"
-                )}
-                key={amount}
-                onClick={() => setSelectedAmount(amount)}
-                type="button"
-              >
-                {formatNaira(amount)}
-              </button>
-            ))}
-          </div>
-
-          <button
-            className="mt-2.5 inline-flex w-full items-center justify-center rounded-[1rem] bg-[#f1d84b] px-4 py-2.5 font-semibold text-[#111111] text-sm transition hover:bg-[#e7cf43] md:mt-4 md:rounded-[1.1rem] md:py-3 md:text-base"
-            onClick={() => onDeposit(selectedAmount)}
-            type="button"
-          >
-            Deposit now
-          </button>
-        </div>
-      </div>
     </Modal>
   );
 };
@@ -442,11 +358,8 @@ const Balances = () => {
     canUseAuthenticatedIndexer,
     needsAuthenticatedIndexer
   } = useEnsureIndexerAuth();
-  const { setShowFundModal } = useFundModalStore();
-  const [activeTab, setActiveTab] = useState<FundsTab>("coins");
+  const [activeTab, setActiveTab] = useState<FundsTab>("tokens");
   const [selectedAsset, setSelectedAsset] = useState<FundsAsset | null>(null);
-  const [selectedDepositAmount, setSelectedDepositAmount] = useState(10);
-  const [showDepositModal, setShowDepositModal] = useState(false);
   const rewardTokensQuery = useQuery({
     enabled: Boolean(profile?.id),
     queryFn: async () => await listProfileRewardTokens(profile?.id || ""),
@@ -497,10 +410,6 @@ const Balances = () => {
     });
   }, [data]);
 
-  const totalAvailableBalance = useMemo(
-    () => assets.reduce((sum, asset) => sum + (asset.usdValue ?? 0), 0),
-    [assets]
-  );
   const cashAssets = useMemo(
     () =>
       assets.filter((asset) =>
@@ -520,15 +429,7 @@ const Balances = () => {
       ),
     [assets]
   );
-  const preferredActionAsset = assets.find((asset) => asset.amount > 0) ?? null;
   const walletActivity = walletActivityQuery.data || [];
-
-  const openFundModal = (amount?: number) => {
-    setShowFundModal({
-      amountToTopUp: amount,
-      showFundModal: true
-    });
-  };
 
   const renderOnchainWalletContent = () => {
     if (loading) {
@@ -561,47 +462,12 @@ const Balances = () => {
     }
 
     return (
-      <div className="mx-auto max-w-[42rem] px-3 py-2.5 sm:px-5 md:px-6 md:py-5">
-        <div>
-          <p className="font-semibold text-[2.3rem] leading-none tracking-tight md:text-[3.75rem]">
-            {formatCurrency(totalAvailableBalance)}
-          </p>
-        </div>
-
-        <div className="mt-4 grid grid-cols-3 gap-1.5 md:mt-5 md:gap-2">
-          <button
-            className={heroActionClassName}
-            onClick={() => setShowDepositModal(true)}
-            type="button"
-          >
-            <ArrowDownTrayIcon className="size-4 md:size-5" />
-            <span className="font-semibold text-xs md:text-sm">Deposit</span>
-          </button>
-
-          <button
-            className={cn(
-              heroActionClassName,
-              !preferredActionAsset && "cursor-not-allowed opacity-40"
-            )}
-            disabled={!preferredActionAsset}
-            onClick={() => setSelectedAsset(preferredActionAsset)}
-            type="button"
-          >
-            <ArrowUpIcon className="size-4 md:size-5" />
-            <span className="font-semibold text-xs md:text-sm">Send</span>
-          </button>
-
-          <Link className={heroActionClassName} to="/swap">
-            <ArrowsRightLeftIcon className="size-4 md:size-5" />
-            <span className="font-semibold text-xs md:text-sm">Swap</span>
-          </Link>
-        </div>
-
-        <div className="no-scrollbar mt-4 flex items-center gap-3 overflow-x-auto border-gray-200 border-b pb-1 md:mt-6 md:gap-5 dark:border-white/10">
+      <div className="mx-auto max-w-[42rem] px-0 py-0 md:px-6 md:py-5">
+        <div className="no-scrollbar flex items-center gap-4 overflow-x-auto border-gray-200 border-b px-2 pb-1 md:mt-1 md:gap-6 md:px-0 dark:border-white/10">
           {[
-            { key: "coins", label: "Coins" },
+            { key: "tokens", label: "Tokens" },
             { key: "collectibles", label: "Collectibles" },
-            { key: "activity", label: "Activity" }
+            { key: "history", label: "History" }
           ].map((tab) => (
             <button
               className={cn(
@@ -622,16 +488,16 @@ const Balances = () => {
           ))}
         </div>
 
-        {activeTab === "coins" ? (
-          <div className="mt-4 space-y-5 md:mt-5 md:space-y-6">
-            <div className="space-y-5 md:space-y-6">
+        {activeTab === "tokens" ? (
+          <div className="space-y-4 px-2 pt-3 md:space-y-6 md:px-0">
+            <div className="space-y-4 md:space-y-6">
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3 md:mb-3">
-                  <h2 className="font-semibold text-lg md:text-xl">
+                  <h2 className="font-semibold text-base md:text-xl">
                     Cash Balance
                   </h2>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {cashAssets.length > 0 ? (
                     cashAssets.map((asset) => (
                       <SectionRow
@@ -650,11 +516,11 @@ const Balances = () => {
 
               <div>
                 <div className="mb-2 flex items-center justify-between gap-3 md:mb-3">
-                  <h2 className="font-semibold text-lg md:text-xl">
+                  <h2 className="font-semibold text-base md:text-xl">
                     Other Balances
                   </h2>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {otherAssets.length > 0 ? (
                     otherAssets.map((asset) => (
                       <SectionRow
@@ -675,7 +541,7 @@ const Balances = () => {
         ) : null}
 
         {activeTab === "collectibles" ? (
-          <div className="mt-4 rounded-[1.2rem] bg-gray-50 p-3.5 md:mt-5 md:rounded-[1.5rem] md:p-4 dark:bg-[#17181d]">
+          <div className="mx-2 mt-4 rounded-[1.2rem] bg-gray-50 p-3.5 md:mx-0 md:mt-5 md:rounded-[1.5rem] md:p-4 dark:bg-[#17181d]">
             <p className="font-semibold text-lg md:text-2xl">Collectibles</p>
             <p className="mt-1 text-gray-500 text-xs md:mt-1.5 md:text-sm dark:text-gray-400">
               Your collectible balances will show here once supported assets are
@@ -684,9 +550,9 @@ const Balances = () => {
           </div>
         ) : null}
 
-        {activeTab === "activity" ? (
-          <div className="mt-4 rounded-[1.2rem] bg-gray-50 p-3.5 md:mt-5 md:rounded-[1.5rem] md:p-4 dark:bg-[#17181d]">
-            <p className="font-semibold text-lg md:text-2xl">Activity</p>
+        {activeTab === "history" ? (
+          <div className="mx-2 mt-4 rounded-[1.2rem] bg-gray-50 p-3.5 md:mx-0 md:mt-5 md:rounded-[1.5rem] md:p-4 dark:bg-[#17181d]">
+            <p className="font-semibold text-lg md:text-2xl">History</p>
             <p className="mt-1 text-gray-500 text-xs md:mt-1.5 md:text-sm dark:text-gray-400">
               Reward sends and payout history land here once tokens hit your
               wallet.
@@ -706,11 +572,15 @@ const Balances = () => {
                   const title =
                     activity.activityKind === "collaboration_payout"
                       ? "Collaboration payout"
-                      : "FanDrop reward";
+                      : activity.activityKind === "referral_reward"
+                        ? "Referral reward"
+                        : "FanDrop reward";
                   const caption =
                     activity.activityKind === "collaboration_payout"
                       ? `From ${activity.sourceName}`
-                      : `${activity.sourceName} auto-sent your reward`;
+                      : activity.activityKind === "referral_reward"
+                        ? `${activity.sourceName} unlocked your ${activity.tokenSymbol} bonus`
+                        : `${activity.sourceName} auto-sent your reward`;
 
                   return (
                     <ActivityRow
@@ -724,7 +594,9 @@ const Balances = () => {
                       statusLabel={
                         activity.activityKind === "collaboration_payout"
                           ? "Paid"
-                          : "Sent"
+                          : activity.activityKind === "referral_reward"
+                            ? "Sent"
+                            : "Sent"
                       }
                       symbol={activity.tokenSymbol}
                       timeLabel={formatRelativeOrAbsolute(activity.createdAt)}
@@ -736,8 +608,8 @@ const Balances = () => {
               </div>
             ) : (
               <p className="mt-4 text-gray-500 text-sm dark:text-gray-400">
-                FanDrop rewards and collaboration payouts will show up here
-                after they are sent.
+                Referral rewards, FanDrop rewards, and collaboration payouts
+                will show up here after they are sent.
               </p>
             )}
           </div>
@@ -750,7 +622,7 @@ const Balances = () => {
     <>
       <FiatWalletPanel />
 
-      <section className="overflow-hidden border border-gray-200/65 bg-white text-gray-900 md:rounded-[2rem] dark:border-gray-800/75 dark:bg-black dark:text-white">
+      <section className="overflow-hidden border-0 bg-transparent text-gray-900 md:rounded-[2rem] md:border md:border-gray-200/65 md:bg-white dark:text-white md:dark:border-gray-800/75 md:dark:bg-black">
         {renderOnchainWalletContent()}
       </section>
 
@@ -758,16 +630,6 @@ const Balances = () => {
         asset={selectedAsset}
         onClose={() => setSelectedAsset(null)}
         refetch={refetch}
-      />
-      <DepositFundsModal
-        onClose={() => setShowDepositModal(false)}
-        onDeposit={(amount) => {
-          setShowDepositModal(false);
-          openFundModal(amount);
-        }}
-        selectedAmount={selectedDepositAmount}
-        setSelectedAmount={setSelectedDepositAmount}
-        show={showDepositModal}
       />
     </>
   );

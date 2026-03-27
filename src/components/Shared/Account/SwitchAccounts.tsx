@@ -1,4 +1,5 @@
 import {
+  ChatBubbleLeftRightIcon,
   CheckCircleIcon,
   EnvelopeIcon,
   LinkIcon,
@@ -8,7 +9,10 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { Button, WarningMessage } from "@/components/Shared/UI";
 import formatAddress from "@/helpers/formatAddress";
-import { getPrivyWalletAddress } from "@/helpers/privy";
+import {
+  getPrivyWalletAddress,
+  PRIMARY_AUTH_LOGIN_METHODS
+} from "@/helpers/privy";
 
 const SwitchAccounts = () => {
   const { authenticated, connectWallet, linkWallet, login, ready, user } =
@@ -32,11 +36,12 @@ const SwitchAccounts = () => {
     )
   );
   const email = user?.email?.address;
+  const telegramUsername = user?.telegram?.username || null;
 
   if (!ready) {
     return (
       <div className="p-5 text-center text-gray-500 text-sm dark:text-gray-400">
-        Loading Privy wallets...
+        Loading Every1 wallet...
       </div>
     );
   }
@@ -45,7 +50,7 @@ const SwitchAccounts = () => {
     return (
       <WarningMessage
         className="m-5"
-        message="Sign in with Privy to manage your connected wallets."
+        message="Sign in with email or Telegram to manage your Every1 wallet."
         title="Not logged in"
       />
     );
@@ -55,7 +60,8 @@ const SwitchAccounts = () => {
     <div className="space-y-4 p-5">
       <div className="space-y-1">
         <p className="text-gray-500 text-sm dark:text-gray-400">
-          One Every1 account can be linked to multiple wallets through Privy.
+          Every1 creates a wallet for your account automatically. You can still
+          connect extra wallets here if you want advanced access.
         </p>
       </div>
 
@@ -71,7 +77,7 @@ const SwitchAccounts = () => {
                   {formatAddress(primaryWallet)}
                 </div>
                 <div className="text-gray-500 text-xs dark:text-gray-400">
-                  Active wallet
+                  Every1 wallet
                 </div>
               </div>
             </div>
@@ -119,7 +125,23 @@ const SwitchAccounts = () => {
                 {email}
               </div>
               <div className="text-gray-500 text-xs dark:text-gray-400">
-                Login email
+                Email login
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {telegramUsername ? (
+          <div className="flex items-center gap-2.5 rounded-xl border border-gray-200 px-3 py-2.5 dark:border-gray-800">
+            <div className="rounded-full bg-gray-100 p-2 text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+              <ChatBubbleLeftRightIcon className="size-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate font-medium text-gray-900 text-sm dark:text-gray-100">
+                @{telegramUsername}
+              </div>
+              <div className="text-gray-500 text-xs dark:text-gray-400">
+                Telegram login
               </div>
             </div>
           </div>
@@ -134,7 +156,7 @@ const SwitchAccounts = () => {
           outline
           size="sm"
         >
-          Connect wallet
+          Connect external
         </Button>
         <Button
           className="w-full"
@@ -150,10 +172,12 @@ const SwitchAccounts = () => {
       {primaryWallet ? null : (
         <Button
           className="w-full"
-          onClick={() => login({ loginMethods: ["wallet", "email"] })}
+          onClick={() =>
+            login({ loginMethods: [...PRIMARY_AUTH_LOGIN_METHODS] })
+          }
           size="sm"
         >
-          Finish setup
+          Continue setup
         </Button>
       )}
     </div>

@@ -3,7 +3,8 @@ import { asMoney, assert } from "../utils.mjs";
 import {
   getWalletOverviewRow,
   insertFiatLedgerEntryIfMissing,
-  logFiatEvent
+  logFiatEvent,
+  recordReferralTradeRewardIfEligible
 } from "./serviceHelpers.mjs";
 
 const isHash = (value) => /^0x[a-fA-F0-9]{64}$/.test(String(value || ""));
@@ -25,8 +26,16 @@ const buildNotificationPayload = ({
 export const createSellSettlementService = ({
   publicClient = null,
   settlementAddress = null,
-  supabase
+  supabase,
+  telegramService = null
 }) => {
+  let telegramServiceRef = telegramService;
+  const resolveExecutionWalletAddress = (profile, transaction) =>
+    transaction.metadata?.walletAddress ||
+    profile?.execution_wallet_address ||
+    profile?.wallet_address ||
+    null;
+
   const normalizedSettlementAddress =
     settlementAddress && isAddress(settlementAddress)
       ? settlementAddress.toLowerCase()
@@ -71,6 +80,11 @@ export const createSellSettlementService = ({
     transaction,
     transactionHash
   }) => {
+    const executionWalletAddress = resolveExecutionWalletAddress(
+      profile,
+      transaction
+    );
+
     assert(
       isEnabled(),
       "Fiat sell settlement is not configured on this server.",
@@ -88,8 +102,8 @@ export const createSellSettlementService = ({
       400
     );
     assert(
-      profile?.wallet_address && isAddress(profile.wallet_address),
-      "A connected wallet is required to complete this sell.",
+      executionWalletAddress && isAddress(executionWalletAddress),
+      "A connected execution wallet is required to complete this sell.",
       401
     );
     assert(
@@ -119,7 +133,7 @@ export const createSellSettlementService = ({
     );
     assert(
       onchainTransaction.from?.toLowerCase() ===
-        profile.wallet_address.toLowerCase(),
+        executionWalletAddress.toLowerCase(),
       "This transfer was not sent from your linked wallet.",
       403
     );
@@ -349,6 +363,57 @@ export const createSellSettlementService = ({
       });
     });
 
+    await recordReferralTradeRewardIfEligible({
+      coinAddress: transaction.coin_address,
+      coinSymbol: transaction.coin_symbol || "COIN",
+      profileId: profile.id,
+      supabase,
+      tradeAmountIn: Number(transaction.coin_amount || 0),
+      tradeAmountOut: Number(transaction.net_naira_return_kobo || 0) / 100,
+      tradeSide: "sell",
+      txHash
+    }).catch((rewardError) => {
+      logFiatEvent("sell.referral_reward_failed", {
+        error:
+          rewardError instanceof Error
+            ? rewardError.message
+            : "Unknown referral reward error",
+        profileId: profile.id,
+        sellId: transaction.id,
+        txHash
+      });
+    });
+
+    if (
+      nextTransaction.status === "completed" &&
+      telegramServiceRef?.isEnabled()
+    ) {
+      await telegramServiceRef
+        .announceTrade({
+          coinAddress: transaction.coin_address,
+          coinName: transaction.coin_symbol || "Creator coin",
+          coinSymbol: transaction.coin_symbol,
+          nairaAmount: asMoney(transaction.net_naira_return_kobo),
+          profile,
+          source: "naira_sell",
+          tokenAmount:
+            transaction.coin_amount_raw || transaction.coin_amount || null,
+          tradeSide: "sell",
+          transactionHash: txHash
+        })
+        .catch((telegramError) => {
+          logFiatEvent("sell.telegram_failed", {
+            error:
+              telegramError instanceof Error
+                ? telegramError.message
+                : "Unknown telegram announcement error",
+            profileId: profile.id,
+            sellId: transaction.id,
+            txHash
+          });
+        });
+    }
+
     logFiatEvent("sell.settlement_completed", {
       creditedNairaKobo: transaction.net_naira_return_kobo,
       profileId: profile.id,
@@ -368,6 +433,9 @@ export const createSellSettlementService = ({
   return {
     isEnabled,
     normalizedSettlementAddress,
+    setTelegramService(nextTelegramService) {
+      telegramServiceRef = nextTelegramService;
+    },
     settleSellTransaction,
     validateTransfer
   };

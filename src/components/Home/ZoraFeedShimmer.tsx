@@ -113,8 +113,10 @@ const ZoraGridPostShimmer = () => {
 };
 
 const ZoraFeedShimmer = ({
+  isDesktopSidebarCollapsed = true,
   viewMode = HomeFeedView.LIST
 }: {
+  isDesktopSidebarCollapsed?: boolean;
   viewMode?: HomeFeedView;
 }) => {
   const isGridView = viewMode === HomeFeedView.GRID;
@@ -124,7 +126,12 @@ const ZoraFeedShimmer = ({
       className={cn(
         "min-w-0 overflow-x-hidden pb-5",
         isGridView
-          ? "grid grid-cols-2 gap-3 px-4 md:grid-cols-3 md:px-0"
+          ? cn(
+              "grid grid-cols-2 gap-3 px-4 md:px-0",
+              isDesktopSidebarCollapsed
+                ? "md:grid-cols-4 lg:grid-cols-6"
+                : "md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
+            )
           : "space-y-3"
       )}
     >

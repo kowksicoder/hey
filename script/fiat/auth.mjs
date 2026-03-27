@@ -78,7 +78,9 @@ export const authenticateFiatRequest = async ({
 
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("id, display_name, username, wallet_address")
+    .select(
+      "id, display_name, username, wallet_address, execution_wallet_address"
+    )
     .eq("id", profileId)
     .maybeSingle();
 
@@ -94,6 +96,7 @@ export const authenticateFiatRequest = async ({
   );
 
   return {
+    authenticatedWalletAddress: walletAddress,
     profile
   };
 };

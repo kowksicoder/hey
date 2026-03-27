@@ -58,6 +58,9 @@ export const createSupportService = ({
   supportFeeBps = 250,
   supabase
 }) => {
+  const resolveExecutionWalletAddress = (profile) =>
+    profile?.execution_wallet_address || profile?.wallet_address || null;
+
   const buildExecutionPayload = ({ transaction, wallet }) => ({
     message:
       transaction.status === "completed"
@@ -199,6 +202,7 @@ export const createSupportService = ({
   const execute = async ({ body, profile }) => {
     assert(body.quoteId, "quoteId is required.");
     const profileId = profile.id;
+    const executionWalletAddress = resolveExecutionWalletAddress(profile);
     const idempotencyKey = body.idempotencyKey || body.quoteId;
     const existing = await getIdempotencyRecord({
       key: idempotencyKey,
@@ -326,7 +330,7 @@ export const createSupportService = ({
           : "wallet_locked_awaiting_settlement",
         quoteMetadata: quote.metadata || {},
         sourceSnapshot: quote.source_snapshot || {},
-        walletAddress: profile.wallet_address
+        walletAddress: executionWalletAddress
       },
       naira_amount_kobo: quote.naira_amount_kobo,
       processing_at: now,
@@ -367,7 +371,7 @@ export const createSupportService = ({
             coinAddress: quote.coin_address,
             quoteId: quote.id,
             settlementMode: executionEnabled ? "live" : "manual",
-            walletAddress: profile.wallet_address
+            walletAddress: executionWalletAddress
           },
           profile_id: profileId,
           reference_id: transaction.id,

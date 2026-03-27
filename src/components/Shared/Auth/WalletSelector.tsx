@@ -4,7 +4,10 @@ import type { FC } from "react";
 import { Link } from "react-router";
 import { Button } from "@/components/Shared/UI";
 import formatAddress from "@/helpers/formatAddress";
-import { getPrivyWalletAddress } from "@/helpers/privy";
+import {
+  getPrivyWalletAddress,
+  PRIMARY_AUTH_LOGIN_METHODS
+} from "@/helpers/privy";
 
 const WalletSelector: FC = () => {
   const { authenticated, connectWallet, linkWallet, login, ready, user } =
@@ -20,13 +23,15 @@ const WalletSelector: FC = () => {
       <div className="space-y-3">
         <Button
           className="w-full"
-          onClick={() => login({ loginMethods: ["wallet"] })}
+          onClick={() =>
+            login({ loginMethods: [...PRIMARY_AUTH_LOGIN_METHODS] })
+          }
           outline
         >
-          Continue with wallet
+          Sign in with email or Telegram
         </Button>
         <div className="linkify text-gray-500 text-sm">
-          By connecting a wallet, you agree to our{" "}
+          By signing in, you agree to our{" "}
           <Link target="_blank" to="/terms">
             Terms
           </Link>{" "}
@@ -44,7 +49,7 @@ const WalletSelector: FC = () => {
     <div className="space-y-2.5">
       {walletAddress ? (
         <div className="rounded-xl border border-gray-200 px-4 py-3 text-gray-700 text-sm dark:border-gray-700 dark:text-gray-200">
-          Connected wallet: {formatAddress(walletAddress)}
+          Every1 wallet: {formatAddress(walletAddress)}
         </div>
       ) : null}
       <div className="flex flex-wrap gap-2">
@@ -54,7 +59,7 @@ const WalletSelector: FC = () => {
           outline
           size="sm"
         >
-          Connect wallet
+          Connect external wallet
         </Button>
         <Button
           icon={<LinkIcon className="size-4" />}

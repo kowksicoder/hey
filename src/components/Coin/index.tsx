@@ -28,6 +28,8 @@ import {
 import { base } from "viem/chains";
 import { useAccount } from "wagmi";
 import Trade from "@/components/Account/CreatorCoin/Trade";
+import CoinFanDropPanel from "@/components/Coin/CoinFanDropPanel";
+import CoinMediaPanel from "@/components/Coin/CoinMediaPanel";
 import PageLayout from "@/components/Shared/PageLayout";
 import {
   Button,
@@ -43,7 +45,9 @@ import cn from "@/helpers/cn";
 import formatRelativeOrAbsolute from "@/helpers/datetime/formatRelativeOrAbsolute";
 import {
   EVERY1_COIN_CHAT_QUERY_KEY,
+  EVERY1_FANDROPS_QUERY_KEY,
   EVERY1_PUBLIC_COIN_COLLABORATIONS_QUERY_KEY,
+  getProfileFanDrops,
   getPublicEvery1Profile,
   listCoinChatMessages,
   listPublicCoinCollaborations
@@ -55,9 +59,13 @@ import getCoinHolders from "@/helpers/getCoinHolders";
 import getCoinPriceHistory from "@/helpers/getCoinPriceHistory";
 import getZoraApiKey from "@/helpers/getZoraApiKey";
 import nFormatter from "@/helpers/nFormatter";
-import { hasSupabaseConfig } from "@/helpers/supabase";
+import { getSupabaseClient, hasSupabaseConfig } from "@/helpers/supabase";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
-import type { Every1PublicCollaborationMember } from "@/types/every1";
+import { useEvery1Store } from "@/store/persisted/useEvery1Store";
+import type {
+  Every1FanDropCampaign,
+  Every1PublicCollaborationMember
+} from "@/types/every1";
 import MobileCoinView from "./MobileCoinView";
 
 type CommentNode = NonNullable<
@@ -66,7 +74,13 @@ type CommentNode = NonNullable<
   >["edges"]
 >[number]["node"];
 
-type CoinPageTab = "activity" | "comments" | "details" | "holders";
+type CoinPageTab = "activity" | "comments" | "details" | "fandrop" | "holders";
+
+type CreatorLaunchRow = {
+  category: null | string;
+  created_by: string;
+  media_url: null | string;
+};
 
 const zoraApiKey = getZoraApiKey();
 
@@ -150,6 +164,7 @@ const Coin = () => {
   const { address } = useParams();
   const [activeTab, setActiveTab] = useState<CoinPageTab>("comments");
   const { address: connectedAddress } = useAccount();
+  const { profile } = useEvery1Store();
   const normalizedAddress = useMemo(
     () => address?.trim().toLowerCase() ?? "",
     [address]
@@ -242,6 +257,25 @@ const Coin = () => {
       (await listPublicCoinCollaborations([normalizedAddress]))[0] ?? null,
     queryKey: [EVERY1_PUBLIC_COIN_COLLABORATIONS_QUERY_KEY, normalizedAddress]
   });
+  const creatorLaunchQuery = useQuery<CreatorLaunchRow | null, Error>({
+    enabled: hasSupabaseConfig() && Boolean(isValidAddress),
+    queryFn: async () => {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from("creator_launches")
+        .select("category, created_by, media_url")
+        .eq("status", "launched")
+        .eq("coin_address", normalizedAddress)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      return (data as CreatorLaunchRow | null) ?? null;
+    },
+    queryKey: ["coin-page-launch", normalizedAddress]
+  });
 
   const commentsQuery = useQuery({
     enabled: Boolean(isValidAddress),
@@ -315,6 +349,27 @@ const Coin = () => {
     queryKey: ["coin-page-holding", normalizedAddress, connectedAddress],
     refetchInterval: 12000
   });
+  const creatorProfileId =
+    creatorLaunchQuery.data?.created_by || creatorEvery1ProfileQuery.data?.id;
+  const fanDropsQuery = useQuery<Every1FanDropCampaign[], Error>({
+    enabled: hasSupabaseConfig() && Boolean(creatorProfileId),
+    queryFn: async () => {
+      const campaigns = await getProfileFanDrops({
+        profileId: profile?.id || null
+      });
+
+      return campaigns.filter(
+        (campaign) => campaign.creatorProfileId === creatorProfileId
+      );
+    },
+    queryKey: [
+      EVERY1_FANDROPS_QUERY_KEY,
+      "coin-page",
+      profile?.id || null,
+      creatorProfileId || null
+    ],
+    staleTime: 15000
+  });
 
   const pageTitle = coin?.symbol
     ? `Trade ${NAIRA_SYMBOL}${coin.symbol}`
@@ -369,6 +424,9 @@ const Coin = () => {
   const holders = holdersQuery.data ?? [];
   const holderCount = coin?.uniqueHolders ?? holders.length;
   const holdingAmount = holdingQuery.data ?? 0;
+  const fanDropCampaigns = fanDropsQuery.data ?? [];
+  const launchCategory = creatorLaunchQuery.data?.category || null;
+  const launchMediaUrl = creatorLaunchQuery.data?.media_url || null;
   const copyAddress = useCopyToClipboard(
     coin?.address ?? "",
     "Coin address copied"
@@ -607,6 +665,16 @@ const Coin = () => {
       );
     }
 
+    if (activeTab === "fandrop") {
+      return (
+        <CoinFanDropPanel
+          campaigns={fanDropCampaigns}
+          creatorName={creatorDisplayName}
+          loading={fanDropsQuery.isLoading}
+        />
+      );
+    }
+
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <Card className="rounded-[1.5rem] px-5 py-5" forceRounded>
@@ -693,7 +761,14 @@ const Coin = () => {
                   creatorHandle={creatorHandle}
                   creatorIsOfficial={creatorIsOfficial}
                   description={coinRecord?.description}
+                  fanDropCampaigns={fanDropCampaigns}
+                  fanDropsLoading={fanDropsQuery.isLoading}
+                  holderCount={holderCount}
+                  holders={holders}
+                  holdersLoading={holdersQuery.isLoading}
                   holdingAmount={holdingAmount}
+                  launchCategory={launchCategory}
+                  launchMediaUrl={launchMediaUrl}
                   priceHistory={coinPriceHistoryQuery.data ?? []}
                   totalSupply={coinRecord?.totalSupply}
                   totalVolume={coinRecord?.totalVolume}
@@ -870,6 +945,15 @@ const Coin = () => {
                     </div>
                   </div>
 
+                  <CoinMediaPanel
+                    category={launchCategory}
+                    coverImage={previewImage}
+                    fallbackVariant="album"
+                    mediaUrl={launchMediaUrl}
+                    showTestFallback
+                    title={coin.name}
+                  />
+
                   <div className="rounded-[2rem] border border-gray-200 bg-white px-6 py-5 dark:border-gray-800 dark:bg-black">
                     <Tabs
                       active={activeTab}
@@ -886,6 +970,15 @@ const Coin = () => {
                             </span>
                           ) : null,
                           type: "comments"
+                        },
+                        {
+                          name: "FanDrop",
+                          suffix: fanDropCampaigns.length ? (
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] dark:bg-gray-900">
+                              {fanDropCampaigns.length}
+                            </span>
+                          ) : null,
+                          type: "fandrop"
                         },
                         {
                           name: "Holders",

@@ -11,6 +11,7 @@ import { createFanDropRuntime } from "./fandropRuntime.mjs";
 import { createFiatRuntime } from "./fiatRuntime.mjs";
 import { createProfileShareRuntime } from "./profileShareRuntime.mjs";
 import { createPushRuntime } from "./pushRuntime.mjs";
+import { createReferralRuntime } from "./referralRuntime.mjs";
 import { createVerificationRuntime } from "./verificationRuntime.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,6 +25,7 @@ const fanDropRuntime = createFanDropRuntime({ rootDir });
 const fiatRuntime = createFiatRuntime({ rootDir });
 const profileShareRuntime = createProfileShareRuntime({ rootDir });
 const pushRuntime = createPushRuntime({ rootDir });
+const referralRuntime = createReferralRuntime({ rootDir });
 const verificationRuntime = createVerificationRuntime({ rootDir });
 
 const DEFAULT_META = {
@@ -995,6 +997,7 @@ const serve = async () => {
   collaborationRuntime.start();
   fiatRuntime.start();
   pushRuntime.start();
+  referralRuntime.start();
   verificationRuntime.start();
   fanDropRuntime.start();
 
@@ -1018,6 +1021,15 @@ const serve = async () => {
       const pushHandled = await pushRuntime.handleApiRequest(request, response);
 
       if (pushHandled) {
+        return;
+      }
+
+      const referralHandled = await referralRuntime.handleApiRequest(
+        request,
+        response
+      );
+
+      if (referralHandled) {
         return;
       }
 

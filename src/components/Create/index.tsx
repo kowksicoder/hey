@@ -1,7 +1,10 @@
 import {
   ArrowLeftIcon,
   CheckCircleIcon,
+  FilmIcon,
   InformationCircleIcon,
+  LinkIcon,
+  MusicalNoteIcon,
   PhotoIcon
 } from "@heroicons/react/24/outline";
 import {
@@ -17,23 +20,32 @@ import { toast } from "sonner";
 import type { Address } from "viem";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
-import { useAccount, useConfig, useWalletClient } from "wagmi";
-import { getWalletClient } from "wagmi/actions";
 import evLogo from "@/assets/fonts/evlogo.jpg";
 import MetaTags from "@/components/Common/MetaTags";
+import CoinDetailSlidesPreview from "@/components/Create/CoinDetailSlidesPreview";
 import { ActionStatusModal } from "@/components/Shared/UI";
 import { BASE_RPC_URL, ZORA_API_KEY } from "@/data/constants";
 import cn from "@/helpers/cn";
 import {
+  getMediaImportConfig,
+  normalizeCoinMediaUrl
+} from "@/helpers/coinMedia";
+import {
   createCollaborationCoinInvite,
   getPublicEvery1Profile
 } from "@/helpers/every1";
+import {
+  getExecutionWalletStatus,
+  toViemWalletClient
+} from "@/helpers/executionWallet";
 import {
   COLLABORATION_LAUNCH_CATEGORY,
   COMMUNITY_LAUNCH_CATEGORY,
   CREATOR_CREATE_CATEGORY_OPTIONS
 } from "@/helpers/platformCategories";
 import { getSupabaseClient, hasSupabaseConfig } from "@/helpers/supabase";
+import { announceTelegramCoinLaunch } from "@/helpers/telegramAnnouncements";
+import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import useHandleWrongNetwork from "@/hooks/useHandleWrongNetwork";
 import useOpenAuth from "@/hooks/useOpenAuth";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
@@ -42,6 +54,8 @@ setApiKey(ZORA_API_KEY);
 
 const CREATE_BANNER_IMAGE =
   "https://i.pinimg.com/736x/81/95/3d/81953df1510811e814ceafc09bd7280e.jpg";
+const CREATE_TEST_SPOTIFY_LINK =
+  "https://open.spotify.com/track/5YrBnxZSRpzYHOBCUfGFw1?utm_source=generator";
 const NAIRA_SYMBOL = "\u20A6";
 
 type CreateTab = "collaboration" | "community" | "creator";
@@ -73,10 +87,17 @@ const Create = () => {
       : searchParams.get("tab") === "collaboration"
         ? "collaboration"
         : "creator";
-  const { address } = useAccount();
-  const config = useConfig();
-  const { data: walletClient } = useWalletClient({ chainId: base.id });
   const { profile } = useEvery1Store();
+  const {
+    executionWalletAddress,
+    executionWalletClient,
+    identityWalletAddress,
+    identityWalletClient,
+    isLinkingExecutionWallet,
+    smartWalletEnabled,
+    smartWalletError,
+    smartWalletLoading
+  } = useEvery1ExecutionWallet();
   const openAuth = useOpenAuth();
   const handleWrongNetwork = useHandleWrongNetwork();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -87,6 +108,7 @@ const Create = () => {
   const [name, setName] = useState("");
   const [creatorCategory, setCreatorCategory] = useState("");
   const [description, setDescription] = useState("");
+  const [mediaUrl, setMediaUrl] = useState("");
   const [collaboratorHandle, setCollaboratorHandle] = useState("");
   const [inviteNote, setInviteNote] = useState("");
   const [creatorSplit, setCreatorSplit] = useState("60");
@@ -106,6 +128,14 @@ const Create = () => {
       }),
     []
   );
+  const executionWalletStatus = getExecutionWalletStatus({
+    executionWalletAddress,
+    executionWalletClient,
+    isLinkingExecutionWallet,
+    smartWalletEnabled,
+    smartWalletError,
+    smartWalletLoading
+  });
 
   const isCommunity = activeTab === "community";
   const isCollaboration = activeTab === "collaboration";
@@ -138,6 +168,14 @@ const Create = () => {
     (isCommunity ? "community" : isCollaboration ? "collab" : "creator");
   const previewCurrencyTicker = `${NAIRA_SYMBOL}${previewTicker}`;
   const previewImage = filePreviewUrl || CREATE_BANNER_IMAGE;
+  const previewMediaUrl = mediaUrl.trim() || CREATE_TEST_SPOTIFY_LINK;
+  const creatorPreviewLabel =
+    profile?.displayName?.trim() ||
+    (profile?.username?.trim()
+      ? `@${profile.username.trim().replace(/^@+/, "")}`
+      : "Creator");
+  const previewCoinTitle = name.trim() || `${previewTicker.toUpperCase()} coin`;
+  const mediaImportConfig = getMediaImportConfig(selectedCategory);
   const topCopy = isCommunity
     ? {
         actionLabel: "Create community coin",
@@ -274,6 +312,7 @@ const Create = () => {
       input_cover_image_url: coverImageUrl,
       input_created_by_profile_id: profile.id,
       input_description: description.trim() || null,
+      input_media_url: normalizeCoinMediaUrl(mediaUrl),
       input_metadata_uri: metadataUri,
       input_name: name.trim(),
       input_post_destination: "every1_feed",
@@ -375,19 +414,57 @@ const Create = () => {
       ticker: ticker.trim()
     });
   };
+  const announceCoinLaunchToTelegram = async ({
+    coinAddress,
+    launchType
+  }: {
+    coinAddress: string;
+    launchType: "community" | "creator";
+  }) => {
+    if (
+      !profile?.id ||
+      !identityWalletAddress ||
+      !identityWalletClient?.account
+    ) {
+      return;
+    }
+
+    await announceTelegramCoinLaunch({
+      category: selectedCategory,
+      coinAddress,
+      coinName: name.trim(),
+      coinSymbol: ticker.trim().toUpperCase(),
+      launchType,
+      profileId: profile.id,
+      walletAddress: identityWalletAddress,
+      walletClient: identityWalletClient
+    });
+  };
 
   const handleSubmit = async () => {
     if (isSubmitting) {
       return;
     }
 
-    if (!address) {
+    if (!profile?.id) {
       await openAuth("create_coin");
+      return;
+    }
+
+    if (!executionWalletStatus.isReady) {
+      toast.error(
+        executionWalletStatus.message || "Preparing your Every1 wallet on Base."
+      );
       return;
     }
 
     if (!canSubmit || !selectedFile) {
       toast.error("Add a ticker, name, and image before continuing.");
+      return;
+    }
+
+    if (mediaUrl.trim() && !normalizeCoinMediaUrl(mediaUrl)) {
+      toast.error("Add a valid media link before continuing.");
       return;
     }
 
@@ -410,11 +487,14 @@ const Create = () => {
         tone: "pending"
       });
       await handleWrongNetwork({ chainId: base.id });
-      const client =
-        (await getWalletClient(config, { chainId: base.id })) || walletClient;
+      const client = toViemWalletClient(executionWalletClient);
+      const creatorAddress = executionWalletAddress as Address | undefined;
 
-      if (!client) {
-        throw new Error("Connect your wallet on Base to create a coin.");
+      if (!client || !creatorAddress) {
+        throw new Error(
+          executionWalletStatus.message ||
+            "Preparing your Every1 wallet on Base."
+        );
       }
 
       const metadataUpload = await createMetadataBuilder()
@@ -427,7 +507,7 @@ const Create = () => {
             } is live on Every1.`
         )
         .withImage(selectedFile)
-        .upload(createZoraUploaderForCreator(address as Address));
+        .upload(createZoraUploaderForCreator(creatorAddress));
 
       if (isCollaboration) {
         await persistCollaborationInvite({
@@ -444,7 +524,11 @@ const Create = () => {
         navigate(
           profile?.username || profile?.zoraHandle
             ? `/@${profile?.username || profile?.zoraHandle}?tab=collaborations`
-            : `/account/${address}?tab=collaborations`
+            : `/account/${
+                identityWalletAddress ||
+                profile?.walletAddress ||
+                executionWalletAddress
+              }?tab=collaborations`
         );
         return;
       }
@@ -452,7 +536,7 @@ const Create = () => {
       const createdCoin = await createCoin({
         call: {
           chainId: base.id,
-          creator: address,
+          creator: creatorAddress,
           currency: "ETH",
           metadata: metadataUpload.createMetadataParameters.metadata,
           name: name.trim(),
@@ -481,6 +565,12 @@ const Create = () => {
           coverImageUrl: metadataUpload.metadata.image || null,
           metadataUri: metadataUpload.url
         });
+        await announceCoinLaunchToTelegram({
+          coinAddress: deployedCoinAddress,
+          launchType: "community"
+        }).catch((error) => {
+          console.error("Failed to announce community coin launch", error);
+        });
         setStatusModal({
           description: "You have a new coin now, start making money!",
           title: "Nice work!",
@@ -493,6 +583,12 @@ const Create = () => {
           coinAddress: deployedCoinAddress,
           coverImageUrl: metadataUpload.metadata.image || null,
           metadataUri: metadataUpload.url
+        });
+        await announceCoinLaunchToTelegram({
+          coinAddress: deployedCoinAddress,
+          launchType: "creator"
+        }).catch((error) => {
+          console.error("Failed to announce creator coin launch", error);
         });
         setStatusModal({
           description: "You have a new coin now, start making money!",
@@ -837,108 +933,198 @@ const Create = () => {
         ) : null}
       </div>
 
-      <button
+      <div
         className={cn(
-          "w-full overflow-hidden border border-gray-200 bg-gray-100 transition dark:border-white/10 dark:bg-[#18191d]",
-          desktop ? "mt-2.5 rounded-[18px]" : "mt-2 rounded-[14px]",
-          filePreviewUrl ? "p-0" : desktop ? "p-3" : "p-2"
+          !isCommunity && !isCollaboration
+            ? desktop
+              ? "mt-2.5 grid grid-cols-2 items-start gap-2"
+              : "mt-2 space-y-2"
+            : desktop
+              ? "mt-2.5"
+              : "mt-2"
         )}
-        onClick={handleOpenGallery}
-        type="button"
       >
-        {filePreviewUrl ? (
-          <div className="relative">
-            <img
-              alt={fileName || "Selected media"}
-              className={cn(
-                "w-full object-cover",
-                desktop ? "aspect-[4/3.15]" : "aspect-[4/3.1]"
-              )}
-              src={filePreviewUrl}
-            />
-            <div
-              className={cn(
-                "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent",
-                desktop ? "px-4 pt-10 pb-4" : "px-2.5 pt-6 pb-2"
-              )}
-            >
-              <div className="flex items-end justify-between gap-3">
-                <div className="min-w-0">
-                  <p
+        <button
+          className={cn(
+            "w-full overflow-hidden border border-gray-200 bg-gray-100 transition dark:border-white/10 dark:bg-[#18191d]",
+            desktop ? "rounded-[16px]" : "rounded-[14px]",
+            filePreviewUrl ? "p-0" : desktop ? "p-2" : "p-2"
+          )}
+          onClick={handleOpenGallery}
+          type="button"
+        >
+          {filePreviewUrl ? (
+            <div className="relative">
+              <img
+                alt={fileName || "Selected media"}
+                className={cn(
+                  "w-full object-cover",
+                  desktop ? "aspect-[4/2]" : "aspect-[4/3.1]"
+                )}
+                src={filePreviewUrl}
+              />
+              <div
+                className={cn(
+                  "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent",
+                  desktop ? "px-3 pt-7 pb-3" : "px-2.5 pt-6 pb-2"
+                )}
+              >
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <p
+                      className={cn(
+                        "truncate font-medium text-white/65",
+                        desktop ? "text-[11px]" : "text-[11px]"
+                      )}
+                    >
+                      Selected image
+                    </p>
+                    <p
+                      className={cn(
+                        "truncate text-white",
+                        desktop ? "text-sm" : "text-xs"
+                      )}
+                    >
+                      {fileName}
+                    </p>
+                  </div>
+                  <span
                     className={cn(
-                      "truncate font-medium text-white/65",
-                      desktop ? "text-sm" : "text-[11px]"
+                      "rounded-full bg-white font-medium text-black",
+                      desktop
+                        ? "px-3 py-1.5 text-[11px]"
+                        : "px-2 py-1 text-[10px]"
                     )}
                   >
-                    Selected image
-                  </p>
-                  <p
-                    className={cn(
-                      "truncate text-white",
-                      desktop ? "text-base" : "text-xs"
-                    )}
-                  >
-                    {fileName}
-                  </p>
+                    Change
+                  </span>
                 </div>
-                <span
-                  className={cn(
-                    "rounded-full bg-white font-medium text-black",
-                    desktop ? "px-4 py-2 text-sm" : "px-2 py-1 text-[10px]"
-                  )}
-                >
-                  Change
-                </span>
               </div>
             </div>
-          </div>
-        ) : (
+          ) : (
+            <div
+              className={cn(
+                "flex items-center justify-center text-left",
+                desktop ? "gap-2 px-2.5 py-2" : "gap-2 px-1 py-1"
+              )}
+            >
+              <div
+                className={cn(
+                  "flex items-center justify-center rounded-full bg-white dark:bg-white/8",
+                  desktop ? "h-8 w-8" : "h-7 w-7 shrink-0"
+                )}
+              >
+                <PhotoIcon
+                  className={cn(
+                    "text-gray-950 dark:text-white",
+                    desktop ? "h-4 w-4" : "h-3.5 w-3.5"
+                  )}
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={cn(
+                    "font-medium text-gray-950 dark:text-white",
+                    desktop ? "text-sm" : "text-[11px]"
+                  )}
+                >
+                  Upload from gallery
+                </p>
+                <p
+                  className={cn(
+                    "mt-0.5 text-gray-500 dark:text-white/55",
+                    desktop ? "text-[11px] leading-4" : "text-[9px] leading-4"
+                  )}
+                >
+                  {isCommunity
+                    ? "Add the image members will see first."
+                    : isCollaboration
+                      ? "Add the cover both collaborators will review."
+                      : "Add an image for the post."}
+                </p>
+              </div>
+            </div>
+          )}
+        </button>
+
+        {!isCommunity && !isCollaboration ? (
           <div
             className={cn(
-              "flex items-center justify-center",
+              "border border-gray-200 bg-gray-100 dark:border-white/10 dark:bg-[#18191d]",
               desktop
-                ? "gap-3 px-4 py-3 text-left"
-                : "gap-2 px-1 py-1 text-left"
+                ? "flex flex-col self-start rounded-[16px] p-3"
+                : "rounded-[18px] p-2.5"
             )}
           >
             <div
               className={cn(
-                "flex items-center justify-center rounded-full bg-white dark:bg-white/8",
-                desktop ? "h-10 w-10" : "h-7 w-7 shrink-0"
+                "flex items-start gap-2",
+                desktop ? "mb-2" : "mb-2"
               )}
             >
-              <PhotoIcon
+              <div
                 className={cn(
-                  "text-gray-950 dark:text-white",
-                  desktop ? "h-5 w-5" : "h-3.5 w-3.5"
-                )}
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p
-                className={cn(
-                  "font-medium text-gray-950 dark:text-white",
-                  desktop ? "text-base" : "text-[11px]"
+                  "flex items-center justify-center rounded-full bg-white dark:bg-white/8",
+                  desktop ? "h-8 w-8" : "h-7 w-7 shrink-0"
                 )}
               >
-                Upload from gallery
-              </p>
-              <p
-                className={cn(
-                  "mt-0.5 text-gray-500 dark:text-white/55",
-                  desktop ? "text-xs" : "text-[9px] leading-4"
+                {mediaImportConfig.intent === "music" ? (
+                  <MusicalNoteIcon
+                    className={cn(
+                      "text-gray-950 dark:text-white",
+                      desktop ? "h-4 w-4" : "h-3.5 w-3.5"
+                    )}
+                  />
+                ) : mediaImportConfig.intent === "movie" ? (
+                  <FilmIcon
+                    className={cn(
+                      "text-gray-950 dark:text-white",
+                      desktop ? "h-4 w-4" : "h-3.5 w-3.5"
+                    )}
+                  />
+                ) : (
+                  <LinkIcon
+                    className={cn(
+                      "text-gray-950 dark:text-white",
+                      desktop ? "h-4 w-4" : "h-3.5 w-3.5"
+                    )}
+                  />
                 )}
-              >
-                {isCommunity
-                  ? "Add the image members will see first."
-                  : isCollaboration
-                    ? "Add the cover both collaborators will review."
-                    : "Add an image for the post."}
-              </p>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p
+                  className={cn(
+                    "font-medium text-gray-950 dark:text-white",
+                    desktop ? "text-sm" : "text-[11px]"
+                  )}
+                >
+                  {mediaImportConfig.label}
+                </p>
+                <p
+                  className={cn(
+                    "mt-0.5 text-gray-500 dark:text-white/55",
+                    desktop ? "text-[11px] leading-4" : "text-[9px] leading-4"
+                  )}
+                >
+                  {mediaImportConfig.helperText}
+                </p>
+              </div>
             </div>
+
+            <input
+              className={cn(
+                "w-full border-none bg-white font-medium text-gray-950 outline-none placeholder:text-gray-400 focus:ring-0 dark:bg-[#111214] dark:text-white dark:placeholder:text-white/24",
+                desktop
+                  ? "rounded-[10px] px-2.5 py-2 text-[13px]"
+                  : "rounded-[12px] px-2.5 py-2 text-xs"
+              )}
+              onChange={(event) => setMediaUrl(event.target.value)}
+              placeholder={mediaImportConfig.placeholder}
+              value={mediaUrl}
+            />
           </div>
-        )}
-      </button>
+        ) : null}
+      </div>
 
       <div
         className={cn(
@@ -959,32 +1145,21 @@ const Create = () => {
               : "10,000,000"}
           </span>
         </div>
-        <div
-          className={cn(
-            "flex items-center justify-between",
-            desktop ? "py-1 text-base" : "py-0.5 text-xs"
-          )}
-        >
-          <span className="text-gray-600 dark:text-white/72">
-            {isCollaboration ? "Collaborator share" : "Post to"}
-          </span>
-          <span className="text-right text-gray-900 dark:text-white/88">
-            {isCollaboration
-              ? `${formatSplitPercent(collaboratorSplitValue)}%`
-              : topCopy.postDestination}
-          </span>
-        </div>
-        <div
-          className={cn(
-            "flex items-center justify-between",
-            desktop ? "py-1 text-base" : "py-0.5 text-xs"
-          )}
-        >
-          <span className="text-gray-600 dark:text-white/72">Category</span>
-          <span className="text-right text-gray-900 dark:text-white/88">
-            {selectedCategory || "Select category"}
-          </span>
-        </div>
+        {isCollaboration ? (
+          <div
+            className={cn(
+              "flex items-center justify-between",
+              desktop ? "py-1 text-base" : "py-0.5 text-xs"
+            )}
+          >
+            <span className="text-gray-600 dark:text-white/72">
+              Collaborator share
+            </span>
+            <span className="text-right text-gray-900 dark:text-white/88">
+              {`${formatSplitPercent(collaboratorSplitValue)}%`}
+            </span>
+          </div>
+        ) : null}
         {isCollaboration ? (
           <div
             className={cn(
@@ -1023,16 +1198,27 @@ const Create = () => {
         className={cn(
           "w-full rounded-full font-semibold transition",
           desktop ? "mt-3 px-6 py-3.5 text-xl" : "mt-2.5 px-4 py-2.5 text-sm",
-          canSubmit && !isSubmitting
+          canSubmit && !isSubmitting && executionWalletStatus.isReady
             ? "bg-gray-950 text-white dark:bg-white dark:text-black"
             : "bg-gray-200 text-gray-400 dark:bg-white/16 dark:text-white/40"
         )}
-        disabled={!canSubmit || isSubmitting}
+        disabled={!canSubmit || isSubmitting || !executionWalletStatus.isReady}
         onClick={handleSubmit}
         type="button"
       >
-        {isSubmitting ? "Creating..." : submitLabel}
+        {isSubmitting
+          ? "Creating..."
+          : executionWalletStatus.isReady
+            ? submitLabel
+            : executionWalletStatus.isPreparing
+              ? "Preparing wallet..."
+              : submitLabel}
       </button>
+      {executionWalletStatus.isReady ? null : (
+        <p className="mt-2 text-center text-[11px] text-gray-500 dark:text-white/52">
+          {executionWalletStatus.message}
+        </p>
+      )}
     </div>
   );
 
@@ -1202,6 +1388,20 @@ const Create = () => {
                   </p>
                 </div>
 
+                {activeTab === "creator" ? (
+                  <div className="mb-4">
+                    <CoinDetailSlidesPreview
+                      category={selectedCategory}
+                      compact
+                      creatorLabel={creatorPreviewLabel}
+                      mediaUrl={previewMediaUrl}
+                      previewImage={filePreviewUrl}
+                      ticker={previewTicker}
+                      title={previewCoinTitle}
+                    />
+                  </div>
+                ) : null}
+
                 {renderCreateForm({
                   showIntro: false,
                   showTickerField: false
@@ -1238,8 +1438,8 @@ const Create = () => {
                 className="absolute inset-0 h-full w-full object-cover"
                 src={previewImage}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/18 to-transparent" />
-              <div className="relative flex h-full flex-col justify-between p-6">
+              <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/28 to-transparent" />
+              <div className="relative flex h-full flex-col p-6">
                 <div className="inline-flex w-fit items-center gap-2 rounded-full bg-black/30 px-3 py-2 text-white backdrop-blur-md">
                   <img
                     alt="Every1"
@@ -1249,30 +1449,61 @@ const Create = () => {
                   <span className="font-medium text-sm">Every1 Create</span>
                 </div>
 
-                <div>
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-white/16 px-3 py-1.5 text-white text-xs backdrop-blur-md">
-                      {previewCurrencyTicker}
-                    </span>
-                    <span className="rounded-full bg-white/16 px-3 py-1.5 text-white text-xs backdrop-blur-md">
+                {activeTab === "creator" ? (
+                  <>
+                    <div className="mt-5">
+                      <div className="mb-4 flex flex-wrap gap-2">
+                        <span className="rounded-full bg-white/16 px-3 py-1.5 text-white text-xs backdrop-blur-md">
+                          {previewCurrencyTicker}
+                        </span>
+                        <span className="rounded-full bg-white/16 px-3 py-1.5 text-white text-xs backdrop-blur-md">
+                          Creator coin
+                        </span>
+                      </div>
+                      <p className="max-w-sm font-semibold text-3xl text-white leading-tight">
+                        Preview the content, image, and chart stack before
+                        launch.
+                      </p>
+                      <p className="mt-3 max-w-sm text-sm text-white/78 leading-6">
+                        Imported creator links add a content slide first, and
+                        uploading the coin image adds the image slide between
+                        content and chart.
+                      </p>
+                    </div>
+
+                    <div className="mt-5 flex-1">
+                      <CoinDetailSlidesPreview
+                        category={selectedCategory}
+                        creatorLabel={creatorPreviewLabel}
+                        mediaUrl={previewMediaUrl}
+                        previewImage={filePreviewUrl}
+                        ticker={previewTicker}
+                        title={previewCoinTitle}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-auto">
+                    <div className="mb-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-white/16 px-3 py-1.5 text-white text-xs backdrop-blur-md">
+                        {previewCurrencyTicker}
+                      </span>
+                      <span className="rounded-full bg-white/16 px-3 py-1.5 text-white text-xs backdrop-blur-md">
+                        {isCommunity
+                          ? "Community linked on publish"
+                          : "Invite must be accepted"}
+                      </span>
+                    </div>
+                    <p className="max-w-sm font-semibold text-4xl text-white leading-tight">
                       {isCommunity
-                        ? "Community linked on publish"
-                        : isCollaboration
-                          ? "Invite must be accepted"
-                          : "Creator coin"}
-                    </span>
+                        ? "Launch the community and its coin in one move."
+                        : "Set the split, send the invite, and wait for approval."}
+                    </p>
+                    <p className="mt-3 max-w-sm text-sm text-white/78 leading-6">
+                      {topCopy.previewBody}
+                    </p>
                   </div>
-                  <p className="max-w-sm font-semibold text-4xl text-white leading-tight">
-                    {isCommunity
-                      ? "Launch the community and its coin in one move."
-                      : isCollaboration
-                        ? "Set the split, send the invite, and wait for approval."
-                        : "Shape the story before it hits the feed."}
-                  </p>
-                  <p className="mt-3 max-w-sm text-sm text-white/78 leading-6">
-                    {topCopy.previewBody}
-                  </p>
-                </div>
+                )}
               </div>
             </aside>
           </div>

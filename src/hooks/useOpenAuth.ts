@@ -1,7 +1,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useCallback } from "react";
 import { toast } from "sonner";
-import { hasPrivyConfig } from "@/helpers/privy";
+import { hasPrivyConfig, PRIMARY_AUTH_LOGIN_METHODS } from "@/helpers/privy";
 
 const useOpenAuth = () => {
   const { login } = usePrivy();
@@ -22,7 +22,7 @@ const useOpenAuth = () => {
       }
 
       try {
-        await login({ loginMethods: ["email", "wallet"] });
+        await login({ loginMethods: [...PRIMARY_AUTH_LOGIN_METHODS] });
       } catch (error) {
         console.error("Failed to open auth flow", error);
         toast.error("Couldn't open sign in", {

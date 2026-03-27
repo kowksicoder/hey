@@ -444,7 +444,7 @@ const ZoraPostCard = ({
                 }}
                 to={coinPath}
               >
-                Trade
+                BUY
               </Link>
             ) : null}
           </div>
@@ -461,7 +461,7 @@ const ZoraPostCard = ({
                 }}
                 to={coinPath}
               >
-                Trade
+                BUY
               </Link>
             ) : (
               <MetaPill label="Vol" value={formatUsdMetric(item.volume24h)} />

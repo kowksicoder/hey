@@ -1,4 +1,5 @@
 import {
+  type ExploreResponse,
   type GetFeaturedCreatorsResponse,
   type GetProfileCoinsResponse,
   type GetProfileResponse,
@@ -51,6 +52,12 @@ type ProfileCoinNode = NonNullable<
 type TraderLeaderboardNode = NonNullable<
   NonNullable<
     GetTraderLeaderboardResponse["exploreTraderLeaderboard"]
+  >["edges"][number]["node"]
+>;
+
+type ExploreCoinNode = NonNullable<
+  NonNullable<
+    NonNullable<ExploreResponse["data"]>["exploreList"]
   >["edges"][number]["node"]
 >;
 
@@ -440,6 +447,40 @@ const buildFeaturedCreatorEntry = async (
   }
 };
 
+const buildFeaturedCreatorEntryFromCoin = (
+  item: ExploreCoinNode
+): FeaturedCreatorEntry | null => {
+  if (item.platformBlocked || item.creatorProfile?.platformBlocked) {
+    return null;
+  }
+
+  const handle = item.creatorProfile?.handle?.trim();
+  const creatorAddress = item.creatorAddress || item.address;
+
+  return {
+    address: item.address,
+    avatar:
+      item.creatorProfile?.avatar?.previewImage?.medium ||
+      item.mediaContent?.previewImage?.medium ||
+      item.mediaContent?.previewImage?.small ||
+      DEFAULT_AVATAR,
+    createdAt: item.createdAt,
+    creatorWalletAddress: creatorAddress || undefined,
+    handle: handle
+      ? handle.startsWith("@")
+        ? handle
+        : `@${handle}`
+      : formatAddress(creatorAddress),
+    isPlatformCreated: false,
+    marketCap: item.marketCap || "0",
+    marketCapDelta24h: item.marketCapDelta24h || "0",
+    name: handle || item.name || formatAddress(creatorAddress),
+    symbol: item.symbol,
+    uniqueHolders: item.uniqueHolders || 0,
+    volume24h: item.volume24h || "0"
+  } satisfies FeaturedCreatorEntry;
+};
+
 export const fetchFeaturedCreatorEntries = async (
   count = 12
 ): Promise<FeaturedCreatorEntry[]> => {
@@ -471,6 +512,7 @@ export const fetchFeaturedCreatorEntries = async (
     creatorOverrides
   );
   let zoraEntries: FeaturedCreatorEntry[] = [];
+  let fallbackTopCreatorEntries: FeaturedCreatorEntry[] = [];
 
   if (zoraApiKey) {
     try {
@@ -505,10 +547,34 @@ export const fetchFeaturedCreatorEntries = async (
     } catch {
       zoraEntries = [];
     }
+
+    if (!platformEntries.length && !zoraEntries.length) {
+      try {
+        const topCreatorsResponse = await getMostValuableCreatorCoins({
+          count: Math.max(count, 1)
+        });
+        const topCreatorEdges =
+          topCreatorsResponse.data?.exploreList?.edges ?? [];
+
+        fallbackTopCreatorEntries = topCreatorEdges
+          .map((edge) => edge.node)
+          .map((item) => buildFeaturedCreatorEntryFromCoin(item))
+          .filter(
+            (entry): entry is FeaturedCreatorEntry =>
+              entry !== null &&
+              !hiddenWallets.has(
+                (entry.creatorWalletAddress || "").toLowerCase()
+              ) &&
+              !hiddenHandles.has(entry.handle.replace(/^@/, "").toLowerCase())
+          );
+      } catch {
+        fallbackTopCreatorEntries = [];
+      }
+    }
   }
 
   const mergedEntries = buildOrderedCreatorEntries(
-    [...platformEntries, ...zoraEntries],
+    [...platformEntries, ...zoraEntries, ...fallbackTopCreatorEntries],
     manualFeaturedIdentifiers
   );
   const campaignAwareEntries = await applyCreatorCampaignData(
@@ -579,40 +645,15 @@ export const fetchCreatorOfWeekEntry =
       const response = await getMostValuableCreatorCoins({ count: 1 });
       const item = response.data?.exploreList?.edges?.[0]?.node;
 
-      if (
-        !item ||
-        item.platformBlocked ||
-        item.creatorProfile?.platformBlocked
-      ) {
+      if (!item) {
         return null;
       }
 
-      const handle = item.creatorProfile?.handle?.trim();
+      const entry = buildFeaturedCreatorEntryFromCoin(item);
 
-      const entry = {
-        address: item.address,
-        avatar:
-          item.creatorProfile?.avatar?.previewImage?.medium ||
-          item.mediaContent?.previewImage?.medium ||
-          item.mediaContent?.previewImage?.small ||
-          DEFAULT_AVATAR,
-        createdAt: item.createdAt,
-        creatorWalletAddress: item.creatorAddress || undefined,
-        handle: handle
-          ? handle.startsWith("@")
-            ? handle
-            : `@${handle}`
-          : formatAddress(item.creatorAddress || item.address),
-        marketCap: item.marketCap,
-        marketCapDelta24h: item.marketCapDelta24h || "0",
-        name:
-          handle ||
-          item.name ||
-          formatAddress(item.creatorAddress || item.address),
-        symbol: item.symbol,
-        uniqueHolders: item.uniqueHolders,
-        volume24h: item.volume24h
-      } satisfies FeaturedCreatorEntry;
+      if (!entry) {
+        return null;
+      }
 
       return (await withOfficialCreatorFlags([entry]))[0];
     } catch {

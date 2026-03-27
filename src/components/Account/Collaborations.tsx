@@ -36,9 +36,12 @@ import {
   listProfileCollaborations,
   respondToCollaborationCoinInvite
 } from "@/helpers/every1";
+import { toViemWalletClient } from "@/helpers/executionWallet";
 import formatAddress from "@/helpers/formatAddress";
 import sanitizeDStorageUrl from "@/helpers/sanitizeDStorageUrl";
+import { announceTelegramCoinLaunch } from "@/helpers/telegramAnnouncements";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
+import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
 import type {
   Every1Collaboration,
@@ -528,6 +531,12 @@ const Collaborations = ({
   const { data: walletClient } = useWalletClient({ chainId: base.id });
   const queryClient = useQueryClient();
   const { profile } = useEvery1Store();
+  const {
+    executionWalletAddress,
+    executionWalletClient,
+    identityWalletAddress,
+    identityWalletClient
+  } = useEvery1ExecutionWallet();
   const [actingCollaborationId, setActingCollaborationId] = useState<
     null | string
   >(null);
@@ -801,8 +810,8 @@ const Collaborations = ({
       return;
     }
 
-    if (!address) {
-      toast.error("Connect your wallet on Base to launch this collaboration.");
+    if (!address && !profile?.walletAddress) {
+      toast.error("Your Every1 wallet is not ready on Base yet.");
       return;
     }
 
@@ -821,10 +830,15 @@ const Collaborations = ({
       });
 
       const client =
-        (await getWalletClient(config, { chainId: base.id })) || walletClient;
+        toViemWalletClient(executionWalletClient) ||
+        (await getWalletClient(config, { chainId: base.id })) ||
+        walletClient;
+      const creatorAddress = (profile?.walletAddress ||
+        address ||
+        executionWalletAddress) as Address | undefined;
 
-      if (!client) {
-        throw new Error("Connect your wallet on Base to launch this coin.");
+      if (!client || !creatorAddress) {
+        throw new Error("Your Every1 wallet is not ready on Base yet.");
       }
 
       const metadataResponse = await fetch(
@@ -839,7 +853,7 @@ const Collaborations = ({
       const createdCoin = await createCoin({
         call: {
           chainId: base.id,
-          creator: address as Address,
+          creator: creatorAddress,
           currency: "ETH",
           metadata,
           name: collaboration.title,
@@ -867,6 +881,24 @@ const Collaborations = ({
         collaboration.collaborationId,
         deployedCoinAddress
       );
+      if (
+        creatorProfileId &&
+        identityWalletAddress &&
+        identityWalletClient?.account
+      ) {
+        await announceTelegramCoinLaunch({
+          category: "Collaboration",
+          coinAddress: deployedCoinAddress,
+          coinName: collaboration.title,
+          coinSymbol: collaboration.ticker.toUpperCase(),
+          launchType: "collaboration",
+          profileId: creatorProfileId,
+          walletAddress: identityWalletAddress,
+          walletClient: identityWalletClient
+        }).catch((error) => {
+          console.error("Failed to announce collaboration coin launch", error);
+        });
+      }
 
       await invalidateCollaborationData();
 
