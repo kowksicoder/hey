@@ -15,7 +15,7 @@ import { Image } from "@/components/Shared/UI";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import cn from "@/helpers/cn";
 import formatAddress from "@/helpers/formatAddress";
-import { formatCompactNaira } from "@/helpers/formatNaira";
+import { formatCompactNairaFromUsd } from "@/helpers/formatNaira";
 import { fetchPlatformDiscoverCoins } from "@/helpers/platformDiscovery";
 import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 
@@ -27,7 +27,7 @@ const STORY_FETCH_COUNT = 18;
 const formatUsdMetric = (value?: null | string) => {
   const number = Number.parseFloat(value ?? "");
 
-  return formatCompactNaira(number, 2);
+  return formatCompactNairaFromUsd(number, 2);
 };
 
 const formatDelta = (value?: null | string) => {

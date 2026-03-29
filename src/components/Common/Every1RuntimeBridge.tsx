@@ -34,7 +34,7 @@ import {
   syncExploreListingEvents,
   syncFanDropNotifications
 } from "@/helpers/every1";
-import { formatNaira } from "@/helpers/formatNaira";
+import { formatNairaFromUsd } from "@/helpers/formatNaira";
 import getCoinPath from "@/helpers/getCoinPath";
 import getZoraApiKey from "@/helpers/getZoraApiKey";
 import { listPublicPlatformLaunches } from "@/helpers/platformDiscovery";
@@ -89,10 +89,10 @@ const formatNudgeUsd = (value?: null | number | string) => {
   const parsed = Number.parseFloat(String(value ?? 0));
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    return formatNaira(0);
+    return formatNairaFromUsd(0);
   }
 
-  return formatNaira(parsed, {
+  return formatNairaFromUsd(parsed, {
     maximumFractionDigits: parsed >= 1000 ? 1 : 2
   });
 };

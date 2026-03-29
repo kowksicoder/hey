@@ -57,7 +57,7 @@ import {
   createFiatIdempotencyKey,
   normalizeFiatUiError
 } from "@/helpers/fiatUi";
-import { formatNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import { formatNaira, formatNairaFromUsd, NAIRA_SYMBOL } from "@/helpers/formatNaira";
 import { announceTelegramTrade } from "@/helpers/telegramAnnouncements";
 import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import useHandleWrongNetwork from "@/hooks/useHandleWrongNetwork";
@@ -1081,7 +1081,7 @@ const Trade = ({
                 <p className="font-semibold text-[1.15rem] text-gray-950 dark:text-white">
                   {Number.parseFloat(coin.marketCap ?? "0") > 0 &&
                   Number.parseFloat(coin.totalSupply ?? "0") > 0
-                    ? formatNaira(
+                    ? formatNairaFromUsd(
                         Number.parseFloat(coin.marketCap ?? "0") /
                           Number.parseFloat(coin.totalSupply ?? "1"),
                         {

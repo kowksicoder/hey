@@ -58,7 +58,14 @@ import {
   createFiatIdempotencyKey,
   normalizeFiatUiError
 } from "@/helpers/fiatUi";
-import { formatNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import {
+  formatCompactNaira,
+  formatNaira,
+  NAIRA_SYMBOL
+} from "@/helpers/formatNaira";
+import getCoinPriceHistory, {
+  type CoinPriceHistoryPoint
+} from "@/helpers/getCoinPriceHistory";
 import getZoraApiKey from "@/helpers/getZoraApiKey";
 import {
   formatCompactMetric,
@@ -73,6 +80,9 @@ import {
 import { announceTelegramTrade } from "@/helpers/telegramAnnouncements";
 import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import useHandleWrongNetwork from "@/hooks/useHandleWrongNetwork";
+import useUsdToNgnRate, {
+  resolveUsdToNgnRate
+} from "@/hooks/useUsdToNgnRate";
 import { useAccountStore } from "@/store/persisted/useAccountStore";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
 import type { SellExecuteResponse } from "@/types/fiat";
@@ -83,7 +93,6 @@ if (zoraApiKey) {
   setApiKey(zoraApiKey);
 }
 
-const USD_TO_NGN_RATE = 1500;
 const TOKEN_DECIMALS = 18;
 
 type ExploreCoinNode = NonNullable<
@@ -197,23 +206,27 @@ const computePercentChange = (marketCap: number, delta: number) => {
   return (delta / base) * 100;
 };
 
-const toNgn = (value: number) => {
+const toNgn = (value: number, usdToNgnRate: number) => {
   if (!Number.isFinite(value) || value <= 0) {
     return 0;
   }
 
-  return value * USD_TO_NGN_RATE;
+  return value * usdToNgnRate;
 };
 
 const isAddress = (value?: null | string): value is Address =>
   Boolean(value && /^0x[a-fA-F0-9]{40}$/.test(value));
 
-const buildSwapCoin = (coin: ZoraCoinSummary, balanceToken = 0): Coin => {
+const buildSwapCoin = (
+  coin: ZoraCoinSummary,
+  balanceToken = 0,
+  usdToNgnRate: number
+): Coin => {
   const priceUsd = parseMetricNumber(coin.tokenPrice?.priceInUsdc);
   const marketCap = parseMetricNumber(coin.marketCap);
   const marketCapDelta = parseMetricNumber(coin.marketCapDelta24h);
   const percentChange = computePercentChange(marketCap, marketCapDelta);
-  const priceNgn = toNgn(priceUsd);
+  const priceNgn = toNgn(priceUsd, usdToNgnRate);
   const safeSymbol = coin.symbol?.trim() || "--";
 
   return {
@@ -236,64 +249,118 @@ const buildSwapCoin = (coin: ZoraCoinSummary, balanceToken = 0): Coin => {
   };
 };
 
-type ChartPoint = { x: number; y: number };
+type ChartPoint = { x: number; y: number; value: number };
 
-const buildSmoothPath = (points: ChartPoint[]) => {
+const buildLinearPath = (points: ChartPoint[]) => {
   if (points.length === 0) return "";
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 
-  const smoothing = 0.2;
   const d = [`M ${points[0].x} ${points[0].y}`];
 
-  for (let index = 0; index < points.length - 1; index++) {
-    const current = points[index];
-    const next = points[index + 1];
-    const previous = points[index - 1] ?? current;
-    const nextNext = points[index + 2] ?? next;
-    const cp1x = current.x + (next.x - previous.x) * smoothing;
-    const cp1y = current.y + (next.y - previous.y) * smoothing;
-    const cp2x = next.x - (nextNext.x - current.x) * smoothing;
-    const cp2y = next.y - (next.y - current.y) * smoothing;
-    d.push(`C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${next.x} ${next.y}`);
+  for (let index = 1; index < points.length; index++) {
+    d.push(`L ${points[index].x} ${points[index].y}`);
   }
 
   return d.join(" ");
 };
 
 const generateChartData = (
-  trend: number,
-  volume: number,
-  phase: number,
-  priceBias: number
+  history: CoinPriceHistoryPoint[],
+  fallbackPrice: number,
+  usdToNgnRate: number
 ): { areaPath: string; linePath: string; points: ChartPoint[] } => {
-  const positiveShape = [
-    0.34, 0.36, 0.4, 0.46, 0.52, 0.58, 0.61, 0.6, 0.66, 0.7, 0.74, 0.72, 0.77,
-    0.8, 0.84, 0.87, 0.9, 0.93
-  ];
-  const negativeShape = [
-    0.88, 0.6, 0.52, 0.57, 0.51, 0.49, 0.48, 0.47, 0.46, 0.46, 0.45, 0.45, 0.44,
-    0.43, 0.43, 0.42, 0.42, 0.41
-  ];
-  const shape = trend >= 0 ? positiveShape : negativeShape;
-  const points: ChartPoint[] = [];
-  const minY = 6;
-  const maxY = 46;
-  const maxJitter = Math.min(0.03, (volume / 1_000_000) * 0.03);
-  const bias = Math.max(-0.12, Math.min(0.12, priceBias));
+  const width = 200;
+  const height = 50;
+  const baseline = height;
+  const topPadding = 6;
+  const bottomPadding = 6;
+  const usableHeight = height - topPadding - bottomPadding;
+  const maxRenderPoints = 120;
 
-  shape.forEach((value, index) => {
-    const x = (200 / (shape.length - 1)) * index;
-    const jitter = Math.sin(index * 0.9 + phase) * maxJitter;
-    const normalized = Math.min(
-      0.97,
-      Math.max(0.12, value + jitter + bias * 0.35)
+  const mapped = history
+    .map((point) => ({
+      price: point.priceUsd * usdToNgnRate,
+      timestamp: new Date(point.timestamp).getTime()
+    }))
+    .filter(
+      (point) =>
+        Number.isFinite(point.price) &&
+        point.price > 0 &&
+        Number.isFinite(point.timestamp)
     );
-    const y = maxY - (maxY - minY) * normalized;
-    points.push({ x, y });
+  const safeHistory =
+    mapped.length > 1
+      ? mapped
+      : [
+          mapped[0] || {
+            price: fallbackPrice,
+            timestamp: Date.now()
+          },
+          {
+            price: mapped[0]?.price || fallbackPrice,
+            timestamp: Date.now() + 1
+          }
+        ];
+  const downsampled =
+    safeHistory.length > maxRenderPoints
+      ? (() => {
+          const bucketSize = Math.ceil(safeHistory.length / maxRenderPoints);
+          const bucketed: Array<{ price: number; timestamp: number }> = [];
+
+          for (let index = 0; index < safeHistory.length; index += bucketSize) {
+            const slice = safeHistory.slice(index, index + bucketSize);
+
+            if (!slice.length) {
+              continue;
+            }
+
+            let minPoint = slice[0];
+            let maxPoint = slice[0];
+
+            for (const point of slice) {
+              if (point.price < minPoint.price) {
+                minPoint = point;
+              }
+              if (point.price > maxPoint.price) {
+                maxPoint = point;
+              }
+            }
+
+            if (minPoint.timestamp === maxPoint.timestamp) {
+              bucketed.push(minPoint);
+            } else if (minPoint.timestamp < maxPoint.timestamp) {
+              bucketed.push(minPoint, maxPoint);
+            } else {
+              bucketed.push(maxPoint, minPoint);
+            }
+          }
+
+          return bucketed;
+        })()
+      : safeHistory;
+  const minTimestamp = downsampled[0]?.timestamp ?? Date.now();
+  const maxTimestamp =
+    downsampled[downsampled.length - 1]?.timestamp ?? minTimestamp + 1;
+  const timeSpan = Math.max(maxTimestamp - minTimestamp, 1);
+  const minPrice = Math.min(...downsampled.map((point) => point.price));
+  const maxPrice = Math.max(...downsampled.map((point) => point.price));
+  const hasMovement = Math.abs(maxPrice - minPrice) > 0.0000001;
+
+  const points = downsampled.map((point) => {
+    const x = ((point.timestamp - minTimestamp) / timeSpan) * width;
+    const normalized = hasMovement
+      ? (point.price - minPrice) / Math.max(maxPrice - minPrice, 0.0000001)
+      : 0.5;
+    const y = height - bottomPadding - normalized * usableHeight;
+
+    return {
+      value: point.price,
+      x,
+      y
+    };
   });
 
-  const linePath = buildSmoothPath(points);
-  const baseline = 50;
+  const linePath = buildLinearPath(points);
   const last = points[points.length - 1];
   const first = points[0];
   const areaPath = `${linePath} L ${last.x} ${baseline} L ${first.x} ${baseline} Z`;
@@ -301,16 +368,54 @@ const generateChartData = (
   return { areaPath, linePath, points };
 };
 
-const formatCompact = (value: number) =>
-  new Intl.NumberFormat("en-NG", {
-    maximumFractionDigits: 1,
-    notation: "compact"
-  }).format(value);
+const formatCompact = (value: number, usdToNgnRate: number) =>
+  formatCompactNaira(value * usdToNgnRate, 1);
 
 const formatNgn = (value: number) =>
   formatNaira(value, {
     maximumFractionDigits: value >= 100 ? 0 : 2
   });
+
+const formatChartNgn = (value: number) => {
+  const safeValue = Number.isFinite(value) && value > 0 ? value : 0;
+
+  if (safeValue >= 100) {
+    return formatNaira(safeValue, { maximumFractionDigits: 0 });
+  }
+
+  if (safeValue >= 1) {
+    return formatNaira(safeValue, {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2
+    });
+  }
+
+  if (safeValue >= 0.1) {
+    return formatNaira(safeValue, {
+      maximumFractionDigits: 3,
+      minimumFractionDigits: 3
+    });
+  }
+
+  if (safeValue >= 0.01) {
+    return formatNaira(safeValue, {
+      maximumFractionDigits: 4,
+      minimumFractionDigits: 4
+    });
+  }
+
+  if (safeValue >= 0.001) {
+    return formatNaira(safeValue, {
+      maximumFractionDigits: 6,
+      minimumFractionDigits: 4
+    });
+  }
+
+  return formatNaira(safeValue, {
+    maximumFractionDigits: 8,
+    minimumFractionDigits: 4
+  });
+};
 
 const formatSwapAmount = (value: number, maxFractionDigits = 6) =>
   new Intl.NumberFormat("en-US", {
@@ -326,6 +431,8 @@ const Swap = () => {
   const queryClient = useQueryClient();
   const { currentAccount } = useAccountStore();
   const { profile } = useEvery1Store();
+  const usdToNgnRateQuery = useUsdToNgnRate();
+  const usdToNgnRate = resolveUsdToNgnRate(usdToNgnRateQuery.data);
   const {
     executionWalletAddress,
     executionWalletClient,
@@ -342,7 +449,6 @@ const Swap = () => {
   const [direction, setDirection] = useState<"ethToToken" | "tokenToEth">(
     "ethToToken"
   );
-  const [phase, setPhase] = useState(0);
   const [selectedCoin, setSelectedCoin] = useState<null | Coin>(null);
   const [coinQuery, setCoinQuery] = useState("");
   const [marketSectionTab, setMarketSectionTab] = useState<
@@ -455,18 +561,6 @@ const Swap = () => {
     []
   );
 
-  useEffect(() => {
-    let frame = 0;
-
-    const tick = () => {
-      setPhase((previous) => (previous + 0.03) % (Math.PI * 2));
-      frame = requestAnimationFrame(tick);
-    };
-
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
   const trendingQuery = useQuery({
     queryFn: async () => {
       const response = await getExploreTopVolumeAll24h({ count: 18 });
@@ -504,7 +598,6 @@ const Swap = () => {
     queryFn: async () => await listProfileWalletActivity(profile?.id || ""),
     queryKey: [EVERY1_WALLET_ACTIVITY_QUERY_KEY, profile?.id || null]
   });
-
   const holdingCoins = useMemo(() => {
     const edges = holdingsQuery.data?.data?.profile?.coinBalances?.edges ?? [];
 
@@ -517,10 +610,11 @@ const Swap = () => {
       .map((holding) =>
         buildSwapCoin(
           holding.coin as ZoraCoinSummary,
-          parseMetricNumber(holding.balance)
+          parseMetricNumber(holding.balance),
+          usdToNgnRate
         )
       );
-  }, [buildSwapCoin, holdingsQuery.data]);
+  }, [holdingsQuery.data, usdToNgnRate]);
 
   const holdingByAddress = useMemo(() => {
     const map = new Map<string, Coin>();
@@ -541,13 +635,17 @@ const Swap = () => {
 
     return nodes.map((coin) => {
       const holding = holdingByAddress.get(coin.address.toLowerCase());
-      return buildSwapCoin(coin as ZoraCoinSummary, holding?.balanceToken ?? 0);
+      return buildSwapCoin(
+        coin as ZoraCoinSummary,
+        holding?.balanceToken ?? 0,
+        usdToNgnRate
+      );
     });
   }, [
-    buildSwapCoin,
     holdingByAddress,
     platformPriorityQuery.data,
-    trendingQuery.data
+    trendingQuery.data,
+    usdToNgnRate
   ]);
 
   const coins = useMemo(() => {
@@ -608,6 +706,13 @@ const Swap = () => {
   const trendUp = activeCoin.percentChange >= 0;
   const trendColor = trendUp ? "#16a34a" : "#db2777";
   const gradientId = `swap-chart-${activeCoin.symbol || "coin"}`;
+  const coinPriceHistoryQuery = useQuery({
+    enabled: Boolean(activeCoin.address),
+    queryFn: async () =>
+      getCoinPriceHistory({ address: activeCoin.address as Address }),
+    queryKey: ["swap-coin-price-history", activeCoin.address],
+    refetchInterval: 5000
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -765,26 +870,27 @@ const Swap = () => {
     );
   }, [coinQuery, coins]);
 
-  const animatedPrice = useMemo(() => {
-    const wiggle = 0.012;
-    const next = activeCoin.priceNgn * (1 + Math.sin(phase) * wiggle);
-    return Math.max(1, next);
-  }, [activeCoin.priceNgn, phase]);
-
-  const priceBias =
-    activeCoin.priceNgn > 0
-      ? (animatedPrice - activeCoin.priceNgn) / activeCoin.priceNgn
-      : 0;
+  const latestHistoryPrice = useMemo(() => {
+    const points = coinPriceHistoryQuery.data ?? [];
+    const lastPoint = points.at(-1);
+    const fallback = activeCoin.priceNgn || 0;
+    const priceUsd = lastPoint?.priceUsd ?? 0;
+    const priceNgn =
+      Number.isFinite(priceUsd) && priceUsd > 0
+        ? priceUsd * usdToNgnRate
+        : fallback;
+    return priceNgn > 0 ? priceNgn : fallback;
+  }, [activeCoin.priceNgn, coinPriceHistoryQuery.data, usdToNgnRate]);
+  const displayPrice = latestHistoryPrice || activeCoin.priceNgn || 0;
 
   const chartData = useMemo(
     () =>
       generateChartData(
-        activeCoin.percentChange,
-        activeCoin.volume,
-        phase,
-        priceBias
+        coinPriceHistoryQuery.data ?? [],
+        latestHistoryPrice,
+        usdToNgnRate
       ),
-    [activeCoin.percentChange, activeCoin.volume, phase, priceBias]
+    [coinPriceHistoryQuery.data, latestHistoryPrice, usdToNgnRate]
   );
 
   const formattedEthBalance = Number(formatEther(ethBalance));
@@ -980,18 +1086,22 @@ const Swap = () => {
   const holdingsLoading = holdingsQuery.isLoading;
 
   const handleChartMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
+    if (!chartData.points.length) {
+      return;
+    }
+
     const rect = event.currentTarget.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const clampedX = Math.max(0, Math.min(rect.width, x));
+    const targetX = (clampedX / rect.width) * 200;
     const nearest = chartData.points.reduce((previous, point) => {
-      const previousDiff = Math.abs(previous.x - (clampedX / rect.width) * 200);
-      const currentDiff = Math.abs(point.x - (clampedX / rect.width) * 200);
+      const previousDiff = Math.abs(previous.x - targetX);
+      const currentDiff = Math.abs(point.x - targetX);
       return currentDiff < previousDiff ? point : previous;
     }, chartData.points[0]);
-    const priceFromY = Math.round(animatedPrice + (50 - nearest.y) * 0.35);
 
     setHover({
-      value: priceFromY,
+      value: nearest.value,
       x: nearest.x,
       y: nearest.y
     });
@@ -1511,7 +1621,7 @@ const Swap = () => {
                           {entry.name}
                         </p>
                         <p className="text-[10px] text-gray-500 dark:text-white/42">
-                          {formatCompactMetric(entry.marketCap)} MC
+                          MC {formatCompactNairaFromUsd(entry.marketCap)}
                         </p>
                       </div>
                     </div>
@@ -1919,7 +2029,7 @@ const Swap = () => {
                           x={hover.x - 23}
                           y={hover.y - 14}
                         >
-                          {formatNgn(hover.value)}
+                          {formatChartNgn(hover.value)}
                         </text>
                       </g>
                     ) : null}
@@ -1929,11 +2039,11 @@ const Swap = () => {
                 <div className="flex shrink-0 items-center gap-2">
                   <div className="text-right">
                     <p className="font-bold text-[15px] text-gray-900 md:text-[18px] dark:text-gray-100">
-                      {formatNgn(Math.round(animatedPrice))}
+                      {formatChartNgn(displayPrice)}
                     </p>
                     <div className="mt-0.5 flex items-center justify-end gap-1 font-semibold text-[10px] text-gray-600 md:text-[11px] dark:text-gray-300">
                       <span className="hidden md:inline">
-                        MC {formatCompact(activeCoin.marketCap)}
+                        MC {formatCompact(activeCoin.marketCap, usdToNgnRate)}
                       </span>
                       <span className="hidden text-gray-500 md:inline">|</span>
                       <span

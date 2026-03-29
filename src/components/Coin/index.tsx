@@ -8,9 +8,7 @@ import {
 import { CheckBadgeIcon } from "@heroicons/react/24/solid";
 import { useQuery } from "@tanstack/react-query";
 import {
-  type GetCoinCommentsResponse,
   type GetCoinResponse,
-  getCoinComments,
   getProfile,
   setApiKey
 } from "@zoralabs/coins-sdk";
@@ -53,7 +51,10 @@ import {
   listPublicCoinCollaborations
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
-import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import {
+  formatCompactNairaFromUsd,
+  NAIRA_SYMBOL
+} from "@/helpers/formatNaira";
 import { getPublicProfilePath } from "@/helpers/getAccount";
 import getCoinHolders from "@/helpers/getCoinHolders";
 import getCoinPriceHistory from "@/helpers/getCoinPriceHistory";
@@ -63,18 +64,13 @@ import { getSupabaseClient, hasSupabaseConfig } from "@/helpers/supabase";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
 import type {
+  Every1CoinChatMessage,
   Every1FanDropCampaign,
   Every1PublicCollaborationMember
 } from "@/types/every1";
 import MobileCoinView from "./MobileCoinView";
 
-type CommentNode = NonNullable<
-  NonNullable<
-    NonNullable<GetCoinCommentsResponse["zora20Token"]>["zoraComments"]
-  >["edges"]
->[number]["node"];
-
-type CoinPageTab = "activity" | "comments" | "details" | "fandrop" | "holders";
+type CoinPageTab = "about" | "activity" | "chat" | "fandrop" | "holders";
 
 type CreatorLaunchRow = {
   category: null | string;
@@ -91,7 +87,7 @@ if (zoraApiKey) {
 const formatUsdMetric = (value?: null | string) => {
   const number = Number.parseFloat(value ?? "");
 
-  return formatCompactNaira(number, 2);
+  return formatCompactNairaFromUsd(number, 2);
 };
 
 const formatDelta = (value?: null | string) => {
@@ -110,20 +106,18 @@ const formatDelta = (value?: null | string) => {
     .replace(/\.0+$|(\.\d*[1-9])0+$/, "$1")}%`;
 };
 
-const formatCommentAuthor = (comment: CommentNode) => {
-  const handle = comment?.userProfile?.handle;
+const formatChatAuthor = (message: Every1CoinChatMessage) => {
+  const handle = message.authorUsername?.trim();
 
-  if (handle?.trim()) {
+  if (handle) {
     return handle.startsWith("@") ? handle : `@${handle}`;
   }
 
-  return formatAddress(comment?.userAddress);
+  return message.authorDisplayName?.trim() || "@every1";
 };
 
-const formatCommentAvatar = (comment: CommentNode) =>
-  comment?.userProfile?.avatar?.previewImage?.small ||
-  comment?.userProfile?.avatar?.previewImage?.medium ||
-  DEFAULT_AVATAR;
+const formatChatAvatar = (message: Every1CoinChatMessage) =>
+  message.authorAvatarUrl || DEFAULT_AVATAR;
 
 const getCoinPreview = (
   coin?: null | NonNullable<GetCoinResponse["zora20Token"]>
@@ -162,7 +156,7 @@ const formatCollaborationMemberLabel = (
 
 const Coin = () => {
   const { address } = useParams();
-  const [activeTab, setActiveTab] = useState<CoinPageTab>("comments");
+  const [activeTab, setActiveTab] = useState<CoinPageTab>("about");
   const { address: connectedAddress } = useAccount();
   const { profile } = useEvery1Store();
   const normalizedAddress = useMemo(
@@ -277,28 +271,6 @@ const Coin = () => {
     queryKey: ["coin-page-launch", normalizedAddress]
   });
 
-  const commentsQuery = useQuery({
-    enabled: Boolean(isValidAddress),
-    queryFn: async () => {
-      const response = await getCoinComments({
-        address: normalizedAddress,
-        count: 12
-      });
-
-      const comments =
-        response.data?.zora20Token?.zoraComments?.edges?.flatMap((edge) =>
-          edge?.node ? [edge.node] : []
-        ) ?? [];
-
-      return {
-        comments,
-        count:
-          response.data?.zora20Token?.zoraComments?.count ?? comments.length
-      };
-    },
-    queryKey: ["coin-page-comments", normalizedAddress],
-    refetchInterval: 15000
-  });
   const coinChatQuery = useQuery({
     enabled:
       hasSupabaseConfig() &&
@@ -320,7 +292,7 @@ const Coin = () => {
         address: normalizedAddress as Address
       }),
     queryKey: ["coin-price-history", normalizedAddress],
-    refetchInterval: 30000
+    refetchInterval: 5000
   });
 
   const holdersQuery = useQuery({
@@ -409,8 +381,6 @@ const Coin = () => {
     [collaboration]
   );
   const hasFansCorner = collaborationLookupComplete && !collaboration;
-  const comments = commentsQuery.data?.comments ?? [];
-  const commentCount = commentsQuery.data?.count ?? 0;
   const chatMessages = coinChatQuery.data ?? [];
   const chatterCount = useMemo(
     () =>
@@ -469,8 +439,8 @@ const Coin = () => {
       return null;
     }
 
-    if (activeTab === "comments") {
-      if (commentsQuery.isLoading) {
+    if (activeTab === "chat") {
+      if (coinChatQuery.isLoading) {
         return (
           <div className="flex min-h-[10rem] items-center justify-center">
             <Spinner size="sm" />
@@ -478,50 +448,40 @@ const Coin = () => {
         );
       }
 
-      if (!comments.length) {
+      if (!chatMessages.length) {
         return (
           <div className="rounded-[1.5rem] border border-gray-200 bg-white px-5 py-8 text-center text-gray-500 dark:border-gray-800 dark:bg-black dark:text-gray-400">
-            No comments yet.
+            Fans Corner is just getting started.
           </div>
         );
       }
 
       return (
         <div className="space-y-3">
-          {comments.slice(0, 4).map((comment) => (
+          {chatMessages.slice(0, 10).map((message) => (
             <div
               className="rounded-[1.35rem] border border-gray-200 bg-white px-4 py-4 dark:border-gray-800 dark:bg-black"
-              key={comment.commentId}
+              key={message.id}
             >
               <div className="flex items-start gap-3">
                 <Image
-                  alt={formatCommentAuthor(comment)}
+                  alt={formatChatAuthor(message)}
                   className="size-10 rounded-full object-cover"
                   height={40}
-                  src={formatCommentAvatar(comment)}
+                  src={formatChatAvatar(message)}
                   width={40}
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-3">
                     <p className="truncate font-semibold text-gray-950 text-sm dark:text-gray-50">
-                      {formatCommentAuthor(comment)}
+                      {formatChatAuthor(message)}
                     </p>
                     <span className="shrink-0 text-gray-500 text-xs dark:text-gray-400">
-                      {comment.timestamp
-                        ? formatRelativeOrAbsolute(
-                            new Date(
-                              typeof comment.timestamp === "number"
-                                ? comment.timestamp < 1_000_000_000_000
-                                  ? comment.timestamp * 1000
-                                  : comment.timestamp
-                                : comment.timestamp
-                            ).toISOString()
-                          )
-                        : "now"}
+                      {formatRelativeOrAbsolute(message.createdAt)}
                     </span>
                   </div>
                   <p className="mt-1 text-gray-600 text-sm leading-6 dark:text-gray-300">
-                    {comment.comment || "No comment body"}
+                    {message.body}
                   </p>
                 </div>
               </div>
@@ -675,52 +635,56 @@ const Coin = () => {
       );
     }
 
-    return (
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="rounded-[1.5rem] px-5 py-5" forceRounded>
-          <p className="text-gray-500 text-xs uppercase tracking-[0.2em] dark:text-gray-400">
-            Contract
-          </p>
-          <p className="mt-2 break-all font-medium text-gray-950 text-sm dark:text-gray-50">
-            {coin.address}
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button onClick={copyAddress} outline size="sm">
-              <ClipboardDocumentIcon className="mr-1 size-4" />
-              Copy
-            </Button>
-            <Button
-              onClick={() =>
-                window.open(
-                  `https://basescan.org/address/${coin.address}`,
-                  "_blank"
-                )
-              }
-              outline
-              size="sm"
-            >
-              <ArrowTopRightOnSquareIcon className="mr-1 size-4" />
-              Basescan
-            </Button>
-          </div>
-        </Card>
-
-        <Card className="rounded-[1.5rem] px-5 py-5" forceRounded>
-          <p className="text-gray-500 text-xs uppercase tracking-[0.2em] dark:text-gray-400">
-            Coin Details
-          </p>
-          <p className="mt-2 text-gray-600 text-sm leading-6 dark:text-gray-300">
-            {coinRecord?.description?.trim() ||
-              `${coin.name} is live on Base and available to trade on Every1.`}
-          </p>
-          {coinRecord?.createdAt ? (
-            <p className="mt-4 text-gray-500 text-xs dark:text-gray-400">
-              Created {dayjs(coinRecord.createdAt).format("D MMM YYYY")}
+    if (activeTab === "about") {
+      return (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="rounded-[1.5rem] px-5 py-5" forceRounded>
+            <p className="text-gray-500 text-xs uppercase tracking-[0.2em] dark:text-gray-400">
+              Contract
             </p>
-          ) : null}
-        </Card>
-      </div>
-    );
+            <p className="mt-2 break-all font-medium text-gray-950 text-sm dark:text-gray-50">
+              {coin.address}
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button onClick={copyAddress} outline size="sm">
+                <ClipboardDocumentIcon className="mr-1 size-4" />
+                Copy
+              </Button>
+              <Button
+                onClick={() =>
+                  window.open(
+                    `https://basescan.org/address/${coin.address}`,
+                    "_blank"
+                  )
+                }
+                outline
+                size="sm"
+              >
+                <ArrowTopRightOnSquareIcon className="mr-1 size-4" />
+                Basescan
+              </Button>
+            </div>
+          </Card>
+
+          <Card className="rounded-[1.5rem] px-5 py-5" forceRounded>
+            <p className="text-gray-500 text-xs uppercase tracking-[0.2em] dark:text-gray-400">
+              Coin Details
+            </p>
+            <p className="mt-2 text-gray-600 text-sm leading-6 dark:text-gray-300">
+              {coinRecord?.description?.trim() ||
+                `${coin.name} is live on Base and available to trade on Every1.`}
+            </p>
+            {coinRecord?.createdAt ? (
+              <p className="mt-4 text-gray-500 text-xs dark:text-gray-400">
+                Created {dayjs(coinRecord.createdAt).format("D MMM YYYY")}
+              </p>
+            ) : null}
+          </Card>
+        </div>
+      );
+    }
+
+    return null;
   };
 
   return (
@@ -960,24 +924,20 @@ const Coin = () => {
                       layoutId="coin-page-tabs"
                       setActive={(value) => setActiveTab(value as CoinPageTab)}
                       tabs={[
-                        {
-                          name: "Comments",
-                          suffix: commentCount ? (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] dark:bg-gray-900">
-                              {commentCount}
-                            </span>
-                          ) : null,
-                          type: "comments"
-                        },
-                        {
-                          name: "FanDrop",
-                          suffix: fanDropCampaigns.length ? (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] dark:bg-gray-900">
-                              {fanDropCampaigns.length}
-                            </span>
-                          ) : null,
-                          type: "fandrop"
-                        },
+                        { name: "About", type: "about" },
+                        ...(hasFansCorner
+                          ? [
+                              {
+                                name: "Fans Corner",
+                                suffix: (
+                                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] dark:bg-gray-900">
+                                    {nFormatter(chatterCount, 1) || "0"}
+                                  </span>
+                                ),
+                                type: "chat"
+                              }
+                            ]
+                          : []),
                         {
                           name: "Holders",
                           suffix: (
@@ -987,8 +947,16 @@ const Coin = () => {
                           ),
                           type: "holders"
                         },
-                        { name: "Activity", type: "activity" },
-                        { name: "Details", type: "details" }
+                        { name: "Activities", type: "activity" },
+                        {
+                          name: "FanDrop",
+                          suffix: fanDropCampaigns.length ? (
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] dark:bg-gray-900">
+                              {fanDropCampaigns.length}
+                            </span>
+                          ) : null,
+                          type: "fandrop"
+                        }
                       ]}
                     />
 

@@ -7,7 +7,10 @@ import { base } from "viem/chains";
 import Loader from "@/components/Shared/Loader";
 import { Button, Image, Modal } from "@/components/Shared/UI";
 import cn from "@/helpers/cn";
-import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import {
+  formatCompactNairaFromUsd,
+  NAIRA_SYMBOL
+} from "@/helpers/formatNaira";
 import humanize from "@/helpers/humanize";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
 import Trade from "./Trade";
@@ -54,7 +57,7 @@ const CreatorCoinDetails = ({ address }: CreatorCoinDetailsProps) => {
             {coin.symbol}
           </div>
           <div className="font-extrabold text-3xl leading-none tracking-tight md:text-4xl">
-            {formatCompactNaira(Math.round(marketCap))}
+            {formatCompactNairaFromUsd(Math.round(marketCap))}
           </div>
           <div
             className={cn(
@@ -90,7 +93,7 @@ const CreatorCoinDetails = ({ address }: CreatorCoinDetailsProps) => {
             24h volume
           </div>
           <div className="font-semibold text-2xl">
-            {formatCompactNaira(Math.round(volume24h))}
+            {formatCompactNairaFromUsd(Math.round(volume24h))}
           </div>
         </div>
       </div>

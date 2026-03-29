@@ -8,13 +8,16 @@ import { Fragment, memo, useMemo, useState } from "react";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import cn from "@/helpers/cn";
 import formatAddress from "@/helpers/formatAddress";
-import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import {
+  formatCompactNairaFromUsd,
+  NAIRA_SYMBOL
+} from "@/helpers/formatNaira";
 import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 
 const formatUsdMetric = (value?: null | string) => {
   const number = Number.parseFloat(value ?? "");
 
-  return formatCompactNaira(number, 2);
+  return formatCompactNairaFromUsd(number, 2);
 };
 
 const getCreatorName = (item: ZoraFeedItem) => {

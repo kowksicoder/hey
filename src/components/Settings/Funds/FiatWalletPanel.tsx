@@ -24,7 +24,7 @@ import {
   initiateFiatDepositPublic,
   withdrawFiat
 } from "@/helpers/fiat";
-import { formatNaira } from "@/helpers/formatNaira";
+import { formatNaira, USD_TO_NGN_RATE } from "@/helpers/formatNaira";
 import { getPrivyDisplayName } from "@/helpers/privy";
 import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import { useAccountStore } from "@/store/persisted/useAccountStore";
@@ -49,7 +49,6 @@ const formatRelativeDate = (value?: null | string) => {
   }).format(date);
 };
 
-const USD_TO_NGN_RATE = 1500;
 const formatUsd = (value: number) =>
   new Intl.NumberFormat("en-US", {
     currency: "USD",

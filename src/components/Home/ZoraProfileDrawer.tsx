@@ -10,7 +10,7 @@ import { Spinner } from "@/components/Shared/UI";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import cn from "@/helpers/cn";
 import formatAddress from "@/helpers/formatAddress";
-import { formatCompactNaira } from "@/helpers/formatNaira";
+import { formatCompactNairaFromUsd } from "@/helpers/formatNaira";
 import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 
 type ProfileData = NonNullable<GetProfileResponse["profile"]>;
@@ -18,7 +18,7 @@ type ProfileData = NonNullable<GetProfileResponse["profile"]>;
 const formatUsdMetric = (value?: string | null) => {
   const number = Number.parseFloat(value ?? "");
 
-  return formatCompactNaira(number, 2);
+  return formatCompactNairaFromUsd(number, 2);
 };
 
 const getCreatorName = (item: ZoraFeedItem) => {

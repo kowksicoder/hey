@@ -24,7 +24,10 @@ import { useNavigate } from "react-router";
 import { Spinner } from "@/components/Shared/UI";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import cn from "@/helpers/cn";
-import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import {
+  formatCompactNairaFromUsd,
+  NAIRA_SYMBOL
+} from "@/helpers/formatNaira";
 import getCoinPath from "@/helpers/getCoinPath";
 import nFormatter from "@/helpers/nFormatter";
 import truncateByWords from "@/helpers/truncateByWords";
@@ -36,7 +39,7 @@ import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 const formatUsdMetric = (value?: null | string) => {
   const number = Number.parseFloat(value ?? "");
 
-  return formatCompactNaira(number, 2);
+  return formatCompactNairaFromUsd(number, 2);
 };
 
 const getCreatorName = (item: ZoraFeedItem) => {

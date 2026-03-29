@@ -34,6 +34,13 @@ const getAppOrigin = () =>
   process.env.VITE_APP_URL ||
   "http://localhost:4783";
 
+const DEFAULT_USD_TO_NGN_RATE = 1378.02126408623;
+
+const parsePositiveNumber = (value) => {
+  const parsed = Number.parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
 export const createFiatRuntime = ({ rootDir }) => {
   loadEnvFile(path.join(rootDir, ".env"));
   loadEnvFile(path.join(rootDir, ".env.local"));
@@ -110,6 +117,15 @@ export const createFiatRuntime = ({ rootDir }) => {
     ethUsdOverride: process.env.FIAT_ETH_USD_PRICE || null,
     ngnPerUsd: Number.isFinite(ngnPerUsd) ? ngnPerUsd : 1600
   });
+
+  const resolveFxRate = () => {
+    const envOverride = parsePositiveNumber(process.env.FIAT_NGN_PER_USD);
+
+    return {
+      rate: envOverride ?? DEFAULT_USD_TO_NGN_RATE,
+      source: envOverride ? "env" : "default"
+    };
+  };
   const supportSettlementService = runtimeEnabled
     ? createSupportSettlementService({
         executionEnabled,
@@ -221,6 +237,7 @@ export const createFiatRuntime = ({ rootDir }) => {
     const requestUrl = new URL(request.url || "/", "http://localhost");
     const pathname = requestUrl.pathname;
     const isFiatRoute =
+      pathname === "/api/fx" ||
       pathname === "/api/wallet" ||
       pathname.startsWith("/api/wallet/") ||
       pathname.startsWith("/api/support/") ||
@@ -242,6 +259,18 @@ export const createFiatRuntime = ({ rootDir }) => {
     );
 
     try {
+      if (request.method === "GET" && pathname === "/api/fx") {
+        const fxRate = resolveFxRate();
+        jsonResponse(response, 200, {
+          base: "USD",
+          ngnPerUsd: fxRate.rate,
+          quote: "NGN",
+          source: fxRate.source,
+          updatedAt: new Date().toISOString()
+        });
+        return true;
+      }
+
       if (!runtimeEnabled) {
         throw Object.assign(
           new Error("Fiat runtime is not configured on this server."),

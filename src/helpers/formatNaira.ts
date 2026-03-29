@@ -1,5 +1,7 @@
 import nFormatter from "@/helpers/nFormatter";
 
+export const USD_TO_NGN_RATE = 1378.02126408623;
+
 export const NAIRA_SYMBOL = "₦";
 
 type FormatNairaOptions = {
@@ -33,3 +35,16 @@ export const formatCompactNaira = (value: number, digits = 2) => {
 
   return `${NAIRA_SYMBOL}${nFormatter(safeValue, digits)}`;
 };
+
+export const convertUsdToNgn = (value: number) => {
+  const safeValue = Number.isFinite(value) && value > 0 ? value : 0;
+  return safeValue * USD_TO_NGN_RATE;
+};
+
+export const formatNairaFromUsd = (
+  value: number,
+  options: FormatNairaOptions = {}
+) => formatNaira(convertUsdToNgn(value), options);
+
+export const formatCompactNairaFromUsd = (value: number, digits = 2) =>
+  formatCompactNaira(convertUsdToNgn(value), digits);

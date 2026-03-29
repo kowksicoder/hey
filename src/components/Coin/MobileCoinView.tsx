@@ -35,7 +35,10 @@ import {
   EVERY1_COIN_CHAT_QUERY_KEY
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
-import { formatCompactNaira, formatNaira } from "@/helpers/formatNaira";
+import {
+  formatCompactNaira,
+  formatNaira
+} from "@/helpers/formatNaira";
 import { getPublicProfilePath } from "@/helpers/getAccount";
 import type { CoinHolder } from "@/helpers/getCoinHolders";
 import type { CoinPriceHistoryPoint } from "@/helpers/getCoinPriceHistory";
@@ -43,6 +46,9 @@ import nFormatter from "@/helpers/nFormatter";
 import { getSupabaseClient, hasSupabaseConfig } from "@/helpers/supabase";
 import useCopyToClipboard from "@/hooks/useCopyToClipboard";
 import useOpenAuth from "@/hooks/useOpenAuth";
+import useUsdToNgnRate, {
+  resolveUsdToNgnRate
+} from "@/hooks/useUsdToNgnRate";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
 import type {
   Every1CoinChatMessage,
@@ -70,34 +76,16 @@ const RANGE_WINDOW_MS: Partial<Record<ChartRange, number>> = {
   "6H": 6 * 60 * 60 * 1000
 };
 
-const RANGE_POINT_COUNTS: Record<ChartRange, number> = {
-  "1D": 24,
-  "1H": 16,
-  "1M": 24,
-  "1W": 24,
-  "6H": 18,
-  ALL: 28
-};
 
-const buildSmoothPath = (points: ChartPoint[]) => {
+const buildLinearPath = (points: ChartPoint[]) => {
   if (points.length < 2) {
     return "";
   }
 
-  const smoothing = 0.18;
   const d = [`M ${points[0].x} ${points[0].y}`];
 
-  for (let index = 0; index < points.length - 1; index++) {
-    const previous = points[index - 1] || points[index];
-    const current = points[index];
-    const next = points[index + 1];
-    const nextNext = points[index + 2] || next;
-
-    const cp1x = current.x + (next.x - previous.x) * smoothing;
-    const cp1y = current.y + (next.y - previous.y) * smoothing;
-    const cp2x = next.x - (nextNext.x - current.x) * smoothing;
-    const cp2y = next.y - (nextNext.y - current.y) * smoothing;
-    d.push(`C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${next.x} ${next.y}`);
+  for (let index = 1; index < points.length; index++) {
+    d.push(`L ${points[index].x} ${points[index].y}`);
   }
 
   return d.join(" ");
@@ -106,53 +94,77 @@ const buildSmoothPath = (points: ChartPoint[]) => {
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
-const formatPrice = (value: number) => {
-  if (!Number.isFinite(value) || value <= 0) {
+const formatPrice = (value: number, usdToNgnRate: number) => {
+  const ngnValue =
+    Number.isFinite(value) && value > 0 ? value * usdToNgnRate : 0;
+
+  if (!Number.isFinite(ngnValue) || ngnValue <= 0) {
     return formatNaira(0, {
       maximumFractionDigits: 2,
       minimumFractionDigits: 2
     });
   }
 
-  if (value >= 1000) {
-    return formatCompactNaira(value, 2);
+  if (ngnValue >= 1000) {
+    return formatCompactNaira(ngnValue, 2);
   }
 
-  if (value >= 1) {
-    return formatNaira(value, {
+  if (ngnValue >= 1) {
+    return formatNaira(ngnValue, {
       maximumFractionDigits: 2,
       minimumFractionDigits: 2
     });
   }
 
-  if (value >= 0.1) {
-    return formatNaira(value, {
+  if (ngnValue >= 0.1) {
+    return formatNaira(ngnValue, {
       maximumFractionDigits: 3,
       minimumFractionDigits: 3
     });
   }
 
-  return formatNaira(value, {
-    maximumFractionDigits: 4,
+  if (ngnValue >= 0.01) {
+    return formatNaira(ngnValue, {
+      maximumFractionDigits: 4,
+      minimumFractionDigits: 4
+    });
+  }
+
+  if (ngnValue >= 0.001) {
+    return formatNaira(ngnValue, {
+      maximumFractionDigits: 6,
+      minimumFractionDigits: 4
+    });
+  }
+
+  return formatNaira(ngnValue, {
+    maximumFractionDigits: 8,
     minimumFractionDigits: 4
   });
 };
 
-const formatUsdMetric = (value?: null | number | string) => {
+const formatUsdMetric = (
+  value: null | number | string | undefined,
+  usdToNgnRate: number
+) => {
   const numericValue =
     typeof value === "number" ? value : Number.parseFloat(value ?? "");
+  const ngnValue =
+    Number.isFinite(numericValue) && numericValue > 0
+      ? numericValue * usdToNgnRate
+      : 0;
 
-  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+  if (!Number.isFinite(ngnValue) || ngnValue <= 0) {
     return formatNaira(0);
   }
 
-  if (numericValue >= 1000) {
-    return formatCompactNaira(numericValue, 2);
+  if (ngnValue >= 1000) {
+    return formatCompactNaira(ngnValue, 2);
   }
 
-  return formatNaira(numericValue, {
-    maximumFractionDigits: numericValue >= 1 ? 2 : 4,
-    minimumFractionDigits: numericValue >= 1 ? 2 : 4
+  return formatNaira(ngnValue, {
+    maximumFractionDigits: ngnValue >= 1 ? 2 : 4,
+    minimumFractionDigits: ngnValue >= 1 ? 2 : 4
   });
 };
 
@@ -280,11 +292,13 @@ const formatAgeLong = (createdAt?: null | string) => {
 const generateChartData = ({
   currentPrice,
   history,
-  range
+  range,
+  usdToNgnRate
 }: {
   currentPrice: number;
   history: CoinPriceHistoryPoint[];
   range: ChartRange;
+  usdToNgnRate: number;
 }) => {
   const width = 340;
   const height = 210;
@@ -298,14 +312,14 @@ const generateChartData = ({
       x: (width / 11) * index,
       y: height / 2
     }));
-    const linePath = buildSmoothPath(points);
+    const linePath = buildLinearPath(points);
     const areaPath = `${linePath} L ${points[points.length - 1].x} ${baseline} L ${points[0].x} ${baseline} Z`;
 
     return {
       areaPath,
-      highLabel: formatPrice(fallbackPrice),
+      highLabel: formatPrice(fallbackPrice, usdToNgnRate),
       linePath,
-      lowLabel: formatPrice(fallbackPrice),
+      lowLabel: formatPrice(fallbackPrice, usdToNgnRate),
       points
     };
   }
@@ -320,67 +334,98 @@ const generateChartData = ({
       )
     : history;
   const sourceHistory = filteredHistory.length ? filteredHistory : history;
-  const pointCount = RANGE_POINT_COUNTS[range];
-  const startTimestamp = rangeWindow
-    ? latestTimestamp - rangeWindow
-    : new Date(sourceHistory[0].timestamp).getTime();
-  const safeStartTimestamp =
-    Number.isFinite(startTimestamp) && startTimestamp > 0
-      ? startTimestamp
-      : latestTimestamp;
-  const safeEndTimestamp = Math.max(latestTimestamp, safeStartTimestamp + 1);
-  const step =
-    pointCount > 1
-      ? (safeEndTimestamp - safeStartTimestamp) / (pointCount - 1)
-      : 1;
+  const maxRenderPoints = range === "ALL" ? 220 : 180;
+  const timePoints = sourceHistory
+    .map((point) => ({
+      price: point.priceUsd,
+      timestamp: new Date(point.timestamp).getTime()
+    }))
+    .filter(
+      (point) =>
+        Number.isFinite(point.price) &&
+        point.price > 0 &&
+        Number.isFinite(point.timestamp)
+    );
+  const safeHistory =
+    timePoints.length > 1
+      ? timePoints
+      : [
+          timePoints[0] || {
+            price: fallbackPrice,
+            timestamp: latestTimestamp
+          },
+          {
+            price: timePoints[0]?.price || fallbackPrice,
+            timestamp: latestTimestamp + 1
+          }
+        ];
+  const downsampled =
+    safeHistory.length > maxRenderPoints
+      ? (() => {
+          const bucketSize = Math.ceil(safeHistory.length / maxRenderPoints);
+          const bucketed: Array<{ price: number; timestamp: number }> = [];
 
-  let historyIndex = 0;
-  let lastKnownPrice = sourceHistory[0]?.priceUsd || fallbackPrice;
-  const priceSeries = Array.from({ length: pointCount }, (_, index) => {
-    const targetTimestamp = safeStartTimestamp + step * index;
+          for (let index = 0; index < safeHistory.length; index += bucketSize) {
+            const slice = safeHistory.slice(index, index + bucketSize);
 
-    while (historyIndex < sourceHistory.length) {
-      const currentTimestamp = new Date(
-        sourceHistory[historyIndex].timestamp
-      ).getTime();
+            if (!slice.length) {
+              continue;
+            }
 
-      if (currentTimestamp > targetTimestamp) {
-        break;
-      }
+            let minPoint = slice[0];
+            let maxPoint = slice[0];
 
-      lastKnownPrice = sourceHistory[historyIndex].priceUsd;
-      historyIndex += 1;
-    }
+            for (const point of slice) {
+              if (point.price < minPoint.price) {
+                minPoint = point;
+              }
+              if (point.price > maxPoint.price) {
+                maxPoint = point;
+              }
+            }
 
-    return lastKnownPrice;
-  });
+            if (minPoint.timestamp === maxPoint.timestamp) {
+              bucketed.push(minPoint);
+            } else if (minPoint.timestamp < maxPoint.timestamp) {
+              bucketed.push(minPoint, maxPoint);
+            } else {
+              bucketed.push(maxPoint, minPoint);
+            }
+          }
 
-  const minPrice = Math.min(...priceSeries);
-  const maxPrice = Math.max(...priceSeries);
+          return bucketed;
+        })()
+      : safeHistory;
+  const minTimestamp = downsampled[0]?.timestamp ?? latestTimestamp;
+  const maxTimestamp =
+    downsampled[downsampled.length - 1]?.timestamp ?? minTimestamp + 1;
+  const timeSpan = Math.max(maxTimestamp - minTimestamp, 1);
+  const minPrice = Math.min(...downsampled.map((point) => point.price));
+  const maxPrice = Math.max(...downsampled.map((point) => point.price));
   const hasMovement = Math.abs(maxPrice - minPrice) > 0.0000001;
   const topPadding = 18;
   const bottomPadding = 22;
   const usableHeight = height - topPadding - bottomPadding;
-  const points = priceSeries.map((priceValue, index) => {
-    const x = (width / (priceSeries.length - 1)) * index;
+  const points = downsampled.map((point) => {
+    const x = ((point.timestamp - minTimestamp) / timeSpan) * width;
     const normalized = hasMovement
-      ? (priceValue - minPrice) / Math.max(maxPrice - minPrice, 0.0000001)
+      ? (point.price - minPrice) / Math.max(maxPrice - minPrice, 0.0000001)
       : 0.5;
     const y = height - bottomPadding - clamp(normalized, 0, 1) * usableHeight;
 
     return { x, y };
   });
 
-  const linePath = buildSmoothPath(points);
+  const linePath = buildLinearPath(points);
   const lastPoint = points[points.length - 1];
   const firstPoint = points[0];
   const areaPath = `${linePath} L ${lastPoint.x} ${baseline} L ${firstPoint.x} ${baseline} Z`;
 
   return {
     areaPath,
-    highLabel: formatPrice(maxPrice || fallbackPrice),
+    highLabel: formatPrice(maxPrice || fallbackPrice, usdToNgnRate),
     linePath,
-    lowLabel: formatPrice(minPrice || fallbackPrice),
+    lowLabel: formatPrice(minPrice || fallbackPrice, usdToNgnRate),
     points
   };
 };
@@ -444,6 +489,8 @@ const MobileCoinView = ({
   const queryClient = useQueryClient();
   const openAuth = useOpenAuth();
   const { profile } = useEvery1Store();
+  const usdToNgnRateQuery = useUsdToNgnRate();
+  const usdToNgnRate = resolveUsdToNgnRate(usdToNgnRateQuery.data);
   const [activeTab, setActiveTab] = useState<MobileCoinTab>("about");
   const [activeRange, setActiveRange] = useState<ChartRange>("6H");
   const [showFullDescription, setShowFullDescription] = useState(false);
@@ -517,6 +564,11 @@ const MobileCoinView = ({
     totalSupplyValue > 0
       ? marketCapValue / totalSupplyValue
       : 0;
+  const tokenPriceUsd = Number.parseFloat(coin.tokenPrice?.priceInUsdc ?? "");
+  const displayPriceUsd =
+    Number.isFinite(tokenPriceUsd) && tokenPriceUsd > 0
+      ? tokenPriceUsd
+      : price;
   const delta24hValue = Number.parseFloat(coin.marketCapDelta24h ?? "0");
   const changePercent = useMemo(() => {
     const previous = marketCapValue - delta24hValue;
@@ -530,11 +582,12 @@ const MobileCoinView = ({
   const chartData = useMemo(
     () =>
       generateChartData({
-        currentPrice: price || 1,
+        currentPrice: displayPriceUsd || 1,
         history: priceHistory,
-        range: activeRange
+        range: activeRange,
+        usdToNgnRate
       }),
-    [activeRange, price, priceHistory]
+    [activeRange, displayPriceUsd, priceHistory, usdToNgnRate]
   );
   useEffect(() => {
     setLiveChatterCount(chatterCount);
@@ -807,7 +860,7 @@ const MobileCoinView = ({
   const compactHeaderRight = (
     <div className="text-right">
       <p className="font-semibold text-[1.15rem] text-gray-950 dark:text-white">
-        {formatPrice(price)}
+        {formatPrice(displayPriceUsd, usdToNgnRate)}
       </p>
       <p
         className={cn(
@@ -928,7 +981,7 @@ const MobileCoinView = ({
           <div>
             <div className="flex flex-wrap items-end gap-x-1.5 gap-y-1">
               <p className="font-semibold text-[1.35rem] text-gray-950 leading-none tracking-tight dark:text-white">
-                {formatPrice(price)}
+                {formatPrice(displayPriceUsd, usdToNgnRate)}
               </p>
               <p
                 className={cn(
@@ -948,7 +1001,7 @@ const MobileCoinView = ({
                 MCAP
               </p>
               <p className="font-semibold text-[0.76rem] text-gray-950 dark:text-white">
-                {formatUsdMetric(marketCapValue)}
+                {formatUsdMetric(marketCapValue, usdToNgnRate)}
               </p>
             </div>
             <div className="inline-flex items-center gap-0.5 whitespace-nowrap">
@@ -956,7 +1009,7 @@ const MobileCoinView = ({
                 VOL
               </p>
               <p className="font-semibold text-[0.76rem] text-gray-950 dark:text-white">
-                {formatUsdMetric(volume24hValue)}
+                {formatUsdMetric(volume24hValue, usdToNgnRate)}
               </p>
             </div>
           </div>
@@ -1322,23 +1375,24 @@ const MobileCoinView = ({
                       },
                       {
                         label: "Fully diluted valuation",
-                        value: formatUsdMetric(marketCapValue)
+                        value: formatUsdMetric(marketCapValue, usdToNgnRate)
                       },
                       { label: "Liquidity", value: "-" },
                       {
                         label: "Market Cap",
-                        value: formatUsdMetric(marketCapValue)
+                        value: formatUsdMetric(marketCapValue, usdToNgnRate)
                       },
                       {
                         label: "Volume 24h",
-                        value: formatUsdMetric(volume24hValue)
+                        value: formatUsdMetric(volume24hValue, usdToNgnRate)
                       },
                       {
                         label: "Total volume",
                         value: formatUsdMetric(
                           Number.isFinite(totalVolumeValue)
                             ? totalVolumeValue
-                            : volume24hValue
+                            : volume24hValue,
+                          usdToNgnRate
                         )
                       }
                     ].map((row) => (
@@ -1579,7 +1633,7 @@ const MobileCoinView = ({
                               {activity.actorHandle}
                             </p>
                             <p className="truncate text-[10px] text-gray-500 dark:text-white/42">
-                              {formatUsdMetric(activity.totalUsd)} ·{" "}
+                              {formatUsdMetric(activity.totalUsd, usdToNgnRate)} ·{" "}
                               {formatRelativeOrAbsolute(activity.timestamp)}
                             </p>
                           </div>

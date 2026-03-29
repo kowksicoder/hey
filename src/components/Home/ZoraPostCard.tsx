@@ -15,7 +15,10 @@ import { DEFAULT_AVATAR } from "@/data/constants";
 import { HomeFeedView } from "@/data/enums";
 import cn from "@/helpers/cn";
 import formatAddress from "@/helpers/formatAddress";
-import { formatCompactNaira, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import {
+  formatCompactNairaFromUsd,
+  NAIRA_SYMBOL
+} from "@/helpers/formatNaira";
 import getCoinPath from "@/helpers/getCoinPath";
 import nFormatter from "@/helpers/nFormatter";
 import truncateByWords from "@/helpers/truncateByWords";
@@ -25,7 +28,7 @@ import type { ZoraFeedItem } from "./zoraHomeFeedConfig";
 const formatUsdMetric = (value?: null | string) => {
   const number = Number.parseFloat(value ?? "");
 
-  return formatCompactNaira(number, 2);
+  return formatCompactNairaFromUsd(number, 2);
 };
 
 const formatDelta = (value?: null | string) => {
