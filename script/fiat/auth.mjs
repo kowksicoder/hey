@@ -140,3 +140,29 @@ export const authenticateFiatRequest = async ({
     profile
   };
 };
+
+export const authenticateFiatReadRequest = async ({ request, supabase }) => {
+  const profileId = getHeaderValue(
+    request.headers["x-every1-profile-id"]
+  ).trim();
+
+  assert(profileId && isUuid(profileId), "Missing fiat profile identity.", 401);
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select(
+      "id, display_name, username, wallet_address, execution_wallet_address"
+    )
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  assert(profile, "Profile not found.", 401);
+
+  return {
+    profile
+  };
+};

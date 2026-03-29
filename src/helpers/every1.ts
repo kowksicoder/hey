@@ -1042,6 +1042,107 @@ export const verifyFanDropRewardFunding = async (
     method: "POST"
   });
 
+const formatCompactNaira = (amount: number) => {
+  if (!Number.isFinite(amount)) {
+    return "";
+  }
+
+  const sign = amount < 0 ? "-" : "";
+  const absolute = Math.abs(amount);
+
+  if (absolute >= 1_000_000) {
+    const base = absolute / 1_000_000;
+    const decimals = absolute % 1_000_000 === 0 ? 0 : base < 10 ? 1 : 0;
+    const value = base.toFixed(decimals).replace(/\.0$/, "");
+    return `${sign}₦${value}M`;
+  }
+
+  if (absolute >= 100_000) {
+    const base = absolute / 1_000;
+    const decimals = absolute % 1_000 === 0 ? 0 : base < 10 ? 1 : 0;
+    const value = base.toFixed(decimals).replace(/\.0$/, "");
+    return `${sign}₦${value}K`;
+  }
+
+  const formatted = new Intl.NumberFormat("en-NG", {
+    maximumFractionDigits: 0
+  }).format(absolute);
+
+  return `${sign}₦${formatted}`;
+};
+
+const formatPaymentAmount = (amount: number, currency?: string) => {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return "";
+  }
+
+  const normalizedCurrency = currency?.trim().toUpperCase() || "";
+
+  if (normalizedCurrency === "NGN") {
+    return formatCompactNaira(amount);
+  }
+
+  const formatted = new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0
+  }).format(amount);
+
+  return normalizedCurrency ? `${normalizedCurrency} ${formatted}` : formatted;
+};
+
+const buildPaymentNotificationCopy = (row: NotificationRow) => {
+  if (row.kind !== "payment") {
+    return null;
+  }
+
+  const data = row.data || {};
+  const amount = Number((data as { amount?: number | string }).amount);
+  const currency = (data as { currency?: string }).currency;
+  const status = String((data as { status?: string }).status || "").toLowerCase();
+  const formattedAmount = formatPaymentAmount(amount, currency);
+
+  if (!formattedAmount) {
+    return null;
+  }
+
+  if (status === "succeeded") {
+    return {
+      body: `You have successfully deposited ${formattedAmount} to your wallet.`,
+      title: "Deposit completed"
+    };
+  }
+
+  if (status === "failed" || status === "cancelled" || status === "refunded") {
+    return {
+      body: `Your deposit of ${formattedAmount} is ${status}.`,
+      title: "Deposit updated"
+    };
+  }
+
+  if (status) {
+    return {
+      body: `Your deposit of ${formattedAmount} is ${status}.`,
+      title: "Deposit processing"
+    };
+  }
+
+  return {
+    body: `You have successfully deposited ${formattedAmount} to your wallet.`,
+    title: "Deposit completed"
+  };
+};
+
+const buildPaymentNotificationBody = (row: NotificationRow) => {
+  if (row.kind !== "payment") {
+    return row.body;
+  }
+
+  return buildPaymentNotificationCopy(row)?.body || row.body;
+};
+
+const buildPaymentNotificationTitle = (row: NotificationRow) =>
+  buildPaymentNotificationCopy(row)?.title || row.title;
+
 export const listProfileNotifications = async (
   profileId: string,
   {
@@ -1063,14 +1164,14 @@ export const listProfileNotifications = async (
     actorDisplayName: row.actor_display_name,
     actorId: row.actor_id,
     actorUsername: row.actor_username,
-    body: row.body,
+    body: buildPaymentNotificationBody(row),
     createdAt: row.created_at,
     data: row.data || {},
     id: row.id,
     isRead: row.is_read,
     kind: row.kind,
     targetKey: row.target_key,
-    title: row.title
+    title: buildPaymentNotificationTitle(row)
   })) satisfies Every1Notification[];
 };
 

@@ -477,7 +477,8 @@ export const createWalletService = ({
         fee_amount: 0,
         idempotency_key: idempotencyKey,
         metadata: {
-          providerResponse: depositLink.raw
+          providerResponse: depositLink.raw,
+          checkoutMode: "redirect"
         },
         profile_id: profileId,
         provider: "flutterwave",

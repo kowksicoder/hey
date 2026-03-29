@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, type ReactNode } from "react";
 import NotificationIcon from "@/components/Notification/NotificationIcon";
 import Loader from "@/components/Shared/Loader";
 import { Card, EmptyState, ErrorMessage, Image } from "@/components/Shared/UI";
@@ -17,6 +17,52 @@ import type { Every1Notification } from "@/types/every1";
 interface ListProps {
   feedType: string;
 }
+
+const TOKEN_BADGE_REGEX =
+  /(NGN\s?\d[\d,]*(?:\.\d+)?|USD\s?\d[\d,]*(?:\.\d+)?|US\$\s?\d[\d,]*(?:\.\d+)?|₦\d[\d,]*(?:\.\d+)?|₦[A-Za-z][\w-]*)/g;
+
+const badgeBaseClassName =
+  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-4";
+const amountBadgeClassName = `${badgeBaseClassName} bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300`;
+const coinBadgeClassName = `${badgeBaseClassName} bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300`;
+
+const renderNotificationText = (text?: null | string) => {
+  if (!text) {
+    return null;
+  }
+
+  const segments: ReactNode[] = [];
+  let lastIndex = 0;
+  TOKEN_BADGE_REGEX.lastIndex = 0;
+  let match: RegExpExecArray | null = null;
+
+  while ((match = TOKEN_BADGE_REGEX.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+    const isCoinLabel =
+      token.startsWith("₦") && /[A-Za-z]/.test(token.slice(1, 2));
+
+    segments.push(
+      <span
+        className={isCoinLabel ? coinBadgeClassName : amountBadgeClassName}
+        key={`${token}-${match.index}`}
+      >
+        {token}
+      </span>
+    );
+
+    lastIndex = match.index + token.length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push(text.slice(lastIndex));
+  }
+
+  return segments;
+};
 
 const FEED_KIND_MAP: Record<
   NotificationFeedType,
@@ -175,11 +221,11 @@ const List = ({ feedType }: ListProps) => {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-semibold text-[13px] text-gray-950 leading-5 md:text-sm dark:text-gray-50">
-                  {notification.title}
+                  {renderNotificationText(notification.title)}
                 </p>
                 {notification.body ? (
                   <p className="mt-0.5 text-[12px] text-gray-600 leading-4.5 md:mt-1 md:text-sm dark:text-gray-400">
-                    {notification.body}
+                    {renderNotificationText(notification.body)}
                   </p>
                 ) : null}
                 {notification.actorDisplayName || notification.actorUsername ? (

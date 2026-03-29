@@ -1,11 +1,16 @@
-import { ChevronRightIcon } from "@heroicons/react/24/outline";
+import {
+  BanknotesIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  SparklesIcon
+} from "@heroicons/react/24/outline";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import type { Address } from "viem";
 import TopUpButton from "@/components/Shared/Account/TopUp/Button";
 import Loader from "@/components/Shared/Loader";
-import { Button, ErrorMessage, Image, Modal } from "@/components/Shared/UI";
+import { Button, EmptyState, ErrorMessage, Image, Modal } from "@/components/Shared/UI";
 import {
   DEFAULT_COLLECT_TOKEN,
   NATIVE_TOKEN_SYMBOL,
@@ -20,6 +25,7 @@ import {
   listProfileRewardTokens,
   listProfileWalletActivity
 } from "@/helpers/every1";
+import { getFiatWalletTransactionsPublic } from "@/helpers/fiat";
 import formatAddress from "@/helpers/formatAddress";
 import { formatNaira } from "@/helpers/formatNaira";
 import getTokenImage from "@/helpers/getTokenImage";
@@ -53,6 +59,8 @@ const CASH_BALANCE_PRICES: Record<string, number> = {
 
 const modalActionClassName =
   "w-full !rounded-2xl !border-gray-200 !bg-gray-100 !py-2.5 !font-semibold !text-gray-900 hover:!border-gray-300 hover:!bg-gray-200 dark:!border-white/12 dark:!bg-white/6 dark:!text-white dark:hover:!border-white/20 dark:hover:!bg-white/10";
+const modalDepositClassName =
+  "w-full !rounded-2xl !border-emerald-500 !bg-emerald-500 !py-2.5 !font-semibold !text-white hover:!border-emerald-600 hover:!bg-emerald-600 dark:!border-emerald-400 dark:!bg-emerald-400 dark:!text-black dark:hover:!border-emerald-300 dark:hover:!bg-emerald-300";
 
 const formatCurrency = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) {
@@ -179,7 +187,7 @@ const AssetActionsModal = ({
 
           <div className="grid grid-cols-2 gap-2.5 md:gap-2.5">
             <TopUpButton
-              className={modalActionClassName}
+              className={modalDepositClassName}
               label="Deposit"
               size="md"
               token={
@@ -286,6 +294,7 @@ const SectionRow = ({
 
 const ActivityRow = ({
   amountLabel,
+  amountTone,
   caption,
   href,
   statusLabel,
@@ -295,6 +304,7 @@ const ActivityRow = ({
   txHash
 }: {
   amountLabel: string;
+  amountTone: "credit" | "debit" | "neutral";
   caption: string;
   href?: null | string;
   statusLabel: string;
@@ -303,34 +313,71 @@ const ActivityRow = ({
   title: string;
   txHash?: null | string;
 }) => {
+  const amountToneClass =
+    amountTone === "credit"
+      ? "text-emerald-600 dark:text-emerald-400"
+      : amountTone === "debit"
+        ? "text-rose-600 dark:text-rose-400"
+        : "text-gray-950 dark:text-white";
+  const normalizedStatus = statusLabel.toLowerCase();
+  const statusTone =
+    normalizedStatus.includes("success") ||
+    normalizedStatus.includes("succeeded") ||
+    normalizedStatus.includes("paid")
+      ? "success"
+      : normalizedStatus.includes("failed") ||
+          normalizedStatus.includes("cancelled") ||
+          normalizedStatus.includes("refunded")
+        ? "danger"
+        : normalizedStatus.includes("processing")
+          ? "info"
+          : normalizedStatus.includes("pending") ||
+              normalizedStatus.includes("initiated")
+            ? "warning"
+            : "neutral";
+  const statusBadgeClass = cn(
+    "rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]",
+    statusTone === "success" &&
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+    statusTone === "danger" &&
+      "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
+    statusTone === "warning" &&
+      "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300",
+    statusTone === "info" &&
+      "bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300",
+    statusTone === "neutral" &&
+      "bg-gray-100 text-gray-500 dark:bg-white/8 dark:text-gray-400"
+  );
   const content = (
-    <div className="flex items-center justify-between gap-3 py-2.5">
-      <div className="flex min-w-0 items-center gap-3">
+    <div className="flex items-center justify-between gap-2 py-2 md:gap-3 md:py-2.5">
+      <div className="flex min-w-0 items-center gap-2 md:gap-3">
         <Image
           alt={symbol}
-          className="size-9 rounded-full object-cover"
+          className="size-8 rounded-full object-cover md:size-9"
           src={getTokenImage(symbol)}
         />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-semibold text-gray-950 text-sm dark:text-white">
+            <p className="truncate font-semibold text-[13px] text-gray-950 dark:text-white md:text-sm">
               {title}
             </p>
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 uppercase tracking-[0.14em] dark:bg-white/8 dark:text-gray-400">
+            <span className={statusBadgeClass}>
               {statusLabel}
             </span>
           </div>
           <p className="mt-0.5 truncate text-gray-500 text-xs dark:text-gray-400">
             {caption}
           </p>
-          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-500">
+          <p className="mt-0.5 text-[11px] text-gray-500 md:mt-1 dark:text-gray-500">
             {timeLabel}
             {txHash ? ` | ${formatAddress(txHash, 6)}` : ""}
           </p>
         </div>
       </div>
 
-      <p className="shrink-0 font-semibold text-gray-950 text-sm dark:text-white">
+      <p
+        className={`shrink-0 font-semibold text-[13px] ${amountToneClass} md:text-sm`}
+      >
         {amountLabel}
       </p>
     </div>
@@ -339,7 +386,7 @@ const ActivityRow = ({
   if (href) {
     return (
       <Link
-        className="block rounded-2xl px-1 transition hover:bg-gray-50 dark:hover:bg-white/[0.04]"
+        className="block rounded-xl px-0.5 transition hover:bg-gray-50 md:rounded-2xl md:px-1 dark:hover:bg-white/[0.04]"
         to={href}
       >
         {content}
@@ -347,20 +394,19 @@ const ActivityRow = ({
     );
   }
 
-  return <div className="rounded-2xl px-1">{content}</div>;
+  return <div className="rounded-xl px-0.5 md:rounded-2xl md:px-1">{content}</div>;
 };
 
 const Balances = () => {
   const { currentAccount } = useAccountStore();
   const { profile } = useEvery1Store();
   const [activeTab, setActiveTab] = useState<FundsTab>("tokens");
-  const [onchainAccessRequested, setOnchainAccessRequested] = useState(false);
   const {
     authenticateIndexer,
     authenticating,
     canUseAuthenticatedIndexer,
     needsAuthenticatedIndexer
-  } = useEnsureIndexerAuth({ enabled: onchainAccessRequested });
+  } = useEnsureIndexerAuth({ enabled: Boolean(currentAccount?.address) });
   const [selectedAsset, setSelectedAsset] = useState<FundsAsset | null>(null);
   const rewardTokensQuery = useQuery({
     enabled: Boolean(profile?.id),
@@ -371,6 +417,12 @@ const Balances = () => {
     enabled: Boolean(profile?.id),
     queryFn: async () => await listProfileWalletActivity(profile?.id || ""),
     queryKey: [EVERY1_WALLET_ACTIVITY_QUERY_KEY, profile?.id || null]
+  });
+  const fiatTransactionsQuery = useQuery({
+    enabled: Boolean(profile?.id),
+    queryFn: async () =>
+      await getFiatWalletTransactionsPublic(profile?.id || "", 12),
+    queryKey: ["fiat-wallet-transactions-public", profile?.id || null]
   });
   const tokenContracts = useMemo(
     () =>
@@ -384,10 +436,7 @@ const Balances = () => {
   );
   const { data, loading, error, refetch } = useBalancesBulkQuery({
     pollInterval: 5000,
-    skip:
-      !currentAccount?.address ||
-      !onchainAccessRequested ||
-      !canUseAuthenticatedIndexer,
+    skip: !currentAccount?.address || !canUseAuthenticatedIndexer,
     variables: {
       request: {
         address: currentAccount?.address,
@@ -435,67 +484,70 @@ const Balances = () => {
     [assets]
   );
   const walletActivity = walletActivityQuery.data || [];
+  const fiatTransactions = fiatTransactionsQuery.data?.transactions || [];
+  const historyItems = useMemo(() => {
+    const fiatItems = fiatTransactions.map((transaction) => ({
+      amountLabel: `${transaction.direction === "credit" ? "+" : "-"}${formatNaira(
+        transaction.netAmountNaira
+      )}`,
+      amountTone: transaction.direction === "credit" ? "credit" : "debit",
+      caption: transaction.subtitle || "Naira wallet",
+      createdAt: transaction.createdAt,
+      href: null,
+      id: `fiat-${transaction.id}`,
+      statusLabel: transaction.status || "pending",
+      symbol: "NGN",
+      timeLabel: formatRelativeOrAbsolute(transaction.createdAt),
+      title: transaction.title || "Naira wallet",
+      txHash: null
+    }));
+
+    const rewardItems = walletActivity.map((activity) => ({
+      amountLabel: formatTokenAmount(activity.amount, activity.tokenSymbol),
+      amountTone: "credit",
+      caption:
+        activity.activityKind === "collaboration_payout"
+          ? `From ${activity.sourceName}`
+          : activity.activityKind === "referral_reward"
+            ? `${activity.sourceName} unlocked your ${activity.tokenSymbol} bonus`
+            : `${activity.sourceName} auto-sent your reward`,
+      createdAt: activity.createdAt,
+      href: activity.targetKey,
+      id: `reward-${activity.activityId}`,
+      statusLabel:
+        activity.activityKind === "collaboration_payout" ? "Paid" : "Sent",
+      symbol: activity.tokenSymbol,
+      timeLabel: formatRelativeOrAbsolute(activity.createdAt),
+      title:
+        activity.activityKind === "collaboration_payout"
+          ? "Collaboration payout"
+          : activity.activityKind === "referral_reward"
+            ? "Referral reward"
+            : "FanDrop reward",
+      txHash: activity.txHash || null
+    }));
+
+    return [...fiatItems, ...rewardItems].sort((a, b) => {
+      const aTime = new Date(a.createdAt).getTime();
+      const bTime = new Date(b.createdAt).getTime();
+      return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+    });
+  }, [fiatTransactions, walletActivity]);
+  const historyLoading =
+    walletActivityQuery.isLoading || fiatTransactionsQuery.isLoading;
+  const historyError = walletActivityQuery.error || fiatTransactionsQuery.error;
+  const shouldShowHistoryError = Boolean(historyError) && !historyItems.length;
   const requestOnchainAccess = async () => {
-    setOnchainAccessRequested(true);
     await authenticateIndexer({ force: true });
   };
 
   const renderOnchainWalletContent = () => {
-    if (!onchainAccessRequested) {
-      return (
-        <div className="mx-auto max-w-[42rem] px-4 py-8 md:px-6 md:py-10">
-          <div className="rounded-[1.5rem] border border-gray-200 border-dashed bg-gray-50 p-5 text-center dark:border-white/10 dark:bg-[#17181d]">
-            <p className="font-semibold text-base md:text-lg">
-              Load your onchain balances
-            </p>
-            <p className="mt-2 text-gray-500 text-sm dark:text-gray-400">
-              We&apos;ll ask for a secure wallet signature only when you choose
-              to unlock your onchain balances.
-            </p>
-            <Button
-              className="mt-4"
-              loading={authenticating}
-              onClick={() => {
-                void requestOnchainAccess();
-              }}
-              size="md"
-            >
-              Load onchain balances
-            </Button>
-          </div>
-        </div>
-      );
-    }
-
     if (authenticating && !canUseAuthenticatedIndexer) {
       return <Loader className="my-16" />;
     }
 
     if (loading) {
       return <Loader className="my-16" />;
-    }
-
-    if (needsAuthenticatedIndexer) {
-      return (
-        <div className="m-5 space-y-3">
-          <ErrorMessage
-            error={{
-              message:
-                "Approve the secure wallet check to finish loading your onchain balances."
-            }}
-            title="Authentication required"
-          />
-          <Button
-            onClick={() => {
-              void requestOnchainAccess();
-            }}
-            outline
-            size="sm"
-          >
-            Try again
-          </Button>
-        </div>
-      );
     }
 
     if (error) {
@@ -510,27 +562,24 @@ const Balances = () => {
 
     return (
       <div className="mx-auto max-w-[42rem] px-0 py-0 md:px-6 md:py-5">
-        <div className="no-scrollbar flex items-center gap-4 overflow-x-auto border-gray-200 border-b px-2 pb-1 md:mt-1 md:gap-6 md:px-0 dark:border-white/10">
+        <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-1 pb-2 md:mt-1 md:gap-3 md:px-0">
           {[
-            { key: "tokens", label: "Tokens" },
-            { key: "collectibles", label: "Collectibles" },
+            { key: "tokens", label: "Coins" },
+            { key: "collectibles", label: "Earnings" },
             { key: "history", label: "History" }
           ].map((tab) => (
             <button
               className={cn(
-                "relative shrink-0 pb-2 font-medium text-base transition md:pb-2.5 md:text-xl",
+                "shrink-0 rounded-full px-3 py-1.5 font-semibold text-xs transition md:px-4 md:py-2 md:text-sm",
                 activeTab === tab.key
-                  ? "text-gray-900 dark:text-white"
-                  : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                  ? "bg-gray-900 text-white shadow-sm dark:bg-white dark:text-black"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-white/8 dark:text-white/70 dark:hover:bg-white/12"
               )}
               key={tab.key}
               onClick={() => setActiveTab(tab.key as FundsTab)}
               type="button"
             >
               {tab.label}
-              {activeTab === tab.key ? (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-gray-900 dark:bg-white" />
-              ) : null}
             </button>
           ))}
         </div>
@@ -538,126 +587,112 @@ const Balances = () => {
         {activeTab === "tokens" ? (
           <div className="space-y-4 px-2 pt-3 md:space-y-6 md:px-0">
             <div className="space-y-4 md:space-y-6">
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3 md:mb-3">
-                  <h2 className="font-semibold text-base md:text-xl">
-                    Cash Balance
-                  </h2>
-                </div>
+              {cashAssets.length > 0 ? (
                 <div className="space-y-0.5">
-                  {cashAssets.length > 0 ? (
-                    cashAssets.map((asset) => (
-                      <SectionRow
-                        asset={asset}
-                        key={asset.id}
-                        onOpen={setSelectedAsset}
-                      />
-                    ))
-                  ) : (
-                    <p className="py-1.5 text-gray-500 text-sm md:text-base dark:text-gray-500">
-                      No cash balance yet.
-                    </p>
-                  )}
+                  {cashAssets.map((asset) => (
+                    <SectionRow
+                      asset={asset}
+                      key={asset.id}
+                      onOpen={setSelectedAsset}
+                    />
+                  ))}
                 </div>
-              </div>
+              ) : null}
 
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3 md:mb-3">
-                  <h2 className="font-semibold text-base md:text-xl">
-                    Other Balances
-                  </h2>
-                </div>
+              {otherAssets.length > 0 ? (
                 <div className="space-y-0.5">
-                  {otherAssets.length > 0 ? (
-                    otherAssets.map((asset) => (
-                      <SectionRow
-                        asset={asset}
-                        key={asset.id}
-                        onOpen={setSelectedAsset}
-                      />
-                    ))
-                  ) : (
-                    <p className="py-1.5 text-gray-500 text-sm md:text-base dark:text-gray-500">
-                      Other token balances will show up here.
-                    </p>
-                  )}
+                  {otherAssets.map((asset) => (
+                    <SectionRow
+                      asset={asset}
+                      key={asset.id}
+                      onOpen={setSelectedAsset}
+                    />
+                  ))}
                 </div>
-              </div>
+              ) : null}
+
+              {cashAssets.length === 0 && otherAssets.length === 0 ? (
+                <EmptyState
+                  className="mt-4 bg-gray-50 dark:bg-[#17181d]"
+                  icon={
+                    <div className="rounded-full bg-white/70 p-3 text-gray-500 shadow-sm dark:bg-white/10 dark:text-white/70">
+                      <BanknotesIcon className="size-5" />
+                    </div>
+                  }
+                  message={
+                    <p className="text-gray-500 text-sm dark:text-gray-400">
+                      No coins yet.
+                    </p>
+                  }
+                />
+              ) : null}
             </div>
           </div>
         ) : null}
 
         {activeTab === "collectibles" ? (
-          <div className="mx-2 mt-4 rounded-[1.2rem] bg-gray-50 p-3.5 md:mx-0 md:mt-5 md:rounded-[1.5rem] md:p-4 dark:bg-[#17181d]">
-            <p className="font-semibold text-lg md:text-2xl">Collectibles</p>
-            <p className="mt-1 text-gray-500 text-xs md:mt-1.5 md:text-sm dark:text-gray-400">
-              Your collectible balances will show here once supported assets are
-              connected to this wallet.
-            </p>
+          <div className="px-2 pt-4 md:px-0">
+            <EmptyState
+              className="bg-gray-50 dark:bg-[#17181d]"
+              icon={
+                <div className="rounded-full bg-white/70 p-3 text-gray-500 shadow-sm dark:bg-white/10 dark:text-white/70">
+                  <SparklesIcon className="size-5" />
+                </div>
+              }
+              message={
+                <p className="text-gray-500 text-sm dark:text-gray-400">
+                  Earnings will show up here once your coin starts making
+                  money.
+                </p>
+              }
+            />
           </div>
         ) : null}
 
         {activeTab === "history" ? (
           <div className="mx-2 mt-4 rounded-[1.2rem] bg-gray-50 p-3.5 md:mx-0 md:mt-5 md:rounded-[1.5rem] md:p-4 dark:bg-[#17181d]">
-            <p className="font-semibold text-lg md:text-2xl">History</p>
-            <p className="mt-1 text-gray-500 text-xs md:mt-1.5 md:text-sm dark:text-gray-400">
-              Reward sends and payout history land here once tokens hit your
-              wallet.
-            </p>
-
-            {walletActivityQuery.isLoading ? (
+            {historyLoading ? (
               <Loader className="my-10" />
-            ) : walletActivityQuery.error ? (
+            ) : shouldShowHistoryError ? (
               <ErrorMessage
                 className="mt-4"
-                error={walletActivityQuery.error as { message?: string }}
+                error={historyError as { message?: string }}
                 title="Failed to load wallet activity"
               />
-            ) : walletActivity.length ? (
+            ) : historyItems.length ? (
               <div className="mt-4 divide-y divide-gray-200 dark:divide-white/10">
-                {walletActivity.map((activity) => {
-                  const title =
-                    activity.activityKind === "collaboration_payout"
-                      ? "Collaboration payout"
-                      : activity.activityKind === "referral_reward"
-                        ? "Referral reward"
-                        : "FanDrop reward";
-                  const caption =
-                    activity.activityKind === "collaboration_payout"
-                      ? `From ${activity.sourceName}`
-                      : activity.activityKind === "referral_reward"
-                        ? `${activity.sourceName} unlocked your ${activity.tokenSymbol} bonus`
-                        : `${activity.sourceName} auto-sent your reward`;
-
+                {historyItems.map((activity) => {
                   return (
                     <ActivityRow
-                      amountLabel={formatTokenAmount(
-                        activity.amount,
-                        activity.tokenSymbol
-                      )}
-                      caption={caption}
-                      href={activity.targetKey}
-                      key={activity.activityId}
-                      statusLabel={
-                        activity.activityKind === "collaboration_payout"
-                          ? "Paid"
-                          : activity.activityKind === "referral_reward"
-                            ? "Sent"
-                            : "Sent"
-                      }
-                      symbol={activity.tokenSymbol}
-                      timeLabel={formatRelativeOrAbsolute(activity.createdAt)}
-                      title={title}
+                      amountLabel={activity.amountLabel}
+                      amountTone={activity.amountTone}
+                      caption={activity.caption}
+                      href={activity.href}
+                      key={activity.id}
+                      statusLabel={activity.statusLabel}
+                      symbol={activity.symbol}
+                      timeLabel={activity.timeLabel}
+                      title={activity.title}
                       txHash={activity.txHash}
                     />
                   );
                 })}
               </div>
             ) : (
-              <p className="mt-4 text-gray-500 text-sm dark:text-gray-400">
-                Referral rewards, FanDrop rewards, and collaboration payouts
-                will show up here after they are sent.
-              </p>
+              <EmptyState
+                className="mt-4 bg-transparent"
+                hideCard
+                icon={
+                  <div className="rounded-full bg-white/70 p-3 text-gray-500 shadow-sm dark:bg-white/10 dark:text-white/70">
+                    <ClockIcon className="size-5" />
+                  </div>
+                }
+                message={
+                  <p className="text-gray-500 text-sm dark:text-gray-400">
+                    No history yet.
+                  </p>
+                }
+              />
             )}
           </div>
         ) : null}

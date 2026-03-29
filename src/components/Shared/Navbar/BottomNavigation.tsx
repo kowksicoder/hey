@@ -47,7 +47,13 @@ const NavigationItem = ({
     onClick={onClick}
     to={path}
   >
-    <span className="relative">
+    <span
+      className={`relative ${
+        isActive
+          ? "text-gray-950 dark:text-white"
+          : "text-gray-500 dark:text-gray-400"
+      }`}
+    >
       {isActive ? solid : outline}
       {badgeCount > 0 ? (
         <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full border border-white bg-pink-500 px-1 text-center font-semibold text-[10px] text-white leading-4 dark:border-gray-950">
@@ -86,40 +92,40 @@ const BottomNavigation = () => {
   const navigationItems = [
     {
       label: "Explore",
-      outline: <CompassExploreOutlineIcon className="size-6" />,
+      outline: <CompassExploreOutlineIcon className="size-5" strokeWidth={2.25} />,
       path: "/",
-      solid: <CompassExploreSolidIcon className="size-6" />
+      solid: <CompassExploreSolidIcon className="size-5" />
     },
     {
       label: "Search",
-      outline: <MagnifyingGlassIcon className="size-6" />,
+      outline: <MagnifyingGlassIcon className="size-5" strokeWidth={2.25} />,
       path: "/search",
-      solid: <MagnifyingGlassIcon className="size-6" />
+      solid: <MagnifyingGlassIcon className="size-5" />
     },
     {
       label: "Create",
-      outline: <CreateOutline className="size-6" />,
+      outline: <CreateOutline className="size-5" strokeWidth={2.25} />,
       path: "/create",
-      solid: <CreateSolid className="size-6" />
+      solid: <CreateSolid className="size-5" />
     },
     {
       label: "Swap",
-      outline: <SwapOutline className="size-6" />,
+      outline: <SwapOutline className="size-5" strokeWidth={2.25} />,
       path: "/swap",
-      solid: <SwapSolid className="size-6" />
+      solid: <SwapSolid className="size-5" />
     },
     {
       label: "Creators",
-      outline: <CreatorsOutline className="size-6" />,
+      outline: <CreatorsOutline className="size-5" strokeWidth={2.25} />,
       path: "/creators",
-      solid: <CreatorsSolid className="size-6" />
+      solid: <CreatorsSolid className="size-5" />
     }
   ];
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-[5] border-gray-200/65 border-t bg-white pb-safe md:hidden dark:border-gray-800/75 dark:bg-black">
       {showMobileDrawer && <MobileDrawerMenu />}
-      <div className="flex items-center justify-between gap-1 px-1">
+      <div className="flex items-center justify-between gap-1.5 px-1.5 pb-1.5 pt-2">
         {navigationItems.map(({ path, label, outline, solid }) => (
           <NavigationItem
             badgeCount={
@@ -151,7 +157,7 @@ const BottomNavigation = () => {
           >
             <Image
               alt={currentAccount.address}
-              className="size-6 rounded-full border border-gray-200 dark:border-gray-700"
+              className="size-7 rounded-full border border-gray-200 dark:border-gray-700"
               src={getAvatar(currentAccount)}
             />
             <span className="px-1 font-medium text-[9px] text-gray-500 leading-none dark:text-gray-400">

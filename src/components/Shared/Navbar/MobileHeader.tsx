@@ -1,8 +1,14 @@
 import { ArrowLeftIcon, BellIcon, TrophyIcon } from "@heroicons/react/24/solid";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import evLogo from "@/assets/fonts/evlogo.jpg";
 import { Image } from "@/components/Shared/UI";
+import {
+  readFiatWalletCache,
+  subscribeFiatWalletCache,
+  type FiatWalletCacheEntry
+} from "@/helpers/fiatWalletCache";
+import { formatCompactNaira } from "@/helpers/formatNaira";
 import getAvatar from "@/helpers/getAvatar";
 import { hasSupabaseConfig } from "@/helpers/supabase";
 import useEvery1MobileNavBadgeCounts from "@/hooks/useEvery1MobileNavBadgeCounts";
@@ -17,6 +23,8 @@ const MobileHeader = () => {
   const navigate = useNavigate();
   const { currentAccount } = useAccountStore();
   const { profile } = useEvery1Store();
+  const [walletCache, setWalletCache] =
+    useState<FiatWalletCacheEntry | null>(null);
   const { setShow: setShowMobileDrawer } = useMobileDrawerModalStore();
   const isHomePage = pathname === "/";
   const hasNewNotifications = useHasNewNotifications();
@@ -31,6 +39,26 @@ const MobileHeader = () => {
   const leaderboardBadgeCount = pathname.startsWith("/leaderboard")
     ? 0
     : leaderboardCount;
+  useEffect(() => {
+    setWalletCache(readFiatWalletCache(profile?.id || null));
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (!profile?.id) {
+      return;
+    }
+
+    const update = () => {
+      setWalletCache(readFiatWalletCache(profile.id));
+    };
+
+    update();
+
+    return subscribeFiatWalletCache(update);
+  }, [profile?.id]);
+
+  const walletTotal = walletCache?.wallet?.totalBalance ?? 0;
+  const walletBadgeLabel = formatCompactNaira(walletTotal).replace("k", "K");
 
   const handleDrawerOpen = useCallback(() => {
     setShowMobileDrawer(true);
@@ -120,11 +148,11 @@ const MobileHeader = () => {
 
           <div className="flex min-w-0 items-center">
             <Link
-              aria-label="Open wallet"
-              className="inline-flex h-8 max-w-[6.75rem] items-center truncate rounded-full bg-[#14b85a] px-2.5 font-semibold text-[11px] text-white leading-none transition-colors hover:bg-[#11a350] dark:bg-[#14b85a] dark:text-white dark:hover:bg-[#11a350]"
+              aria-label={`Open wallet (${walletBadgeLabel})`}
+              className="inline-flex h-7 max-w-[6.75rem] items-center truncate rounded-full bg-[#14b85a] px-2 font-semibold text-[10px] text-white leading-none transition-colors hover:bg-[#11a350] dark:bg-[#14b85a] dark:text-white dark:hover:bg-[#11a350]"
               to="/wallet"
             >
-              Wallet
+              {walletBadgeLabel}
             </Link>
           </div>
         </div>

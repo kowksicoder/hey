@@ -75,6 +75,19 @@ export interface FiatDepositInitiateResponse {
     checkoutUrl: null | string;
     expiresAt: null | string;
   };
+  checkout?: {
+    mode: "inline" | "redirect";
+    publicKey?: null | string;
+    txRef: string;
+    amountNaira: number;
+    currency: string;
+    customer: {
+      email: string;
+      name?: null | string;
+      phoneNumber?: null | string;
+    };
+    redirectUrl: string;
+  };
 }
 
 export interface FiatWithdrawInput {

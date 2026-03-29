@@ -124,6 +124,9 @@ const getNotificationToastIcon = (
   kind: Every1Notification["kind"] | "browser"
 ) => <NotificationIcon kind={kind} />;
 
+const withToastEmoji = (title: string, tone: "celebrate" | "neutral") =>
+  `${tone === "celebrate" ? "🎉" : "✨"} ${title}`;
+
 const Every1RuntimeBridge = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -530,12 +533,12 @@ const Every1RuntimeBridge = () => {
       newestUnreadNotification.kind === "welcome" ||
       isSpecialEventNotification
     ) {
-      toast.success(newestUnreadNotification.title, {
+      toast.success(withToastEmoji(newestUnreadNotification.title, "celebrate"), {
         description,
         icon: getNotificationToastIcon(newestUnreadNotification.kind)
       });
     } else {
-      toast(newestUnreadNotification.title, {
+      toast(withToastEmoji(newestUnreadNotification.title, "neutral"), {
         description,
         icon: getNotificationToastIcon(newestUnreadNotification.kind)
       });
@@ -578,10 +581,16 @@ const Every1RuntimeBridge = () => {
           setLastToastNotificationId(result.notificationId);
         }
 
-        toast.success(`Daily streak claimed: day ${result.currentStreak}`, {
-          description: `+${result.rewardE1xp} E1XP added to your balance.`,
-          icon: getNotificationToastIcon("streak")
-        });
+        toast.success(
+          withToastEmoji(
+            `Daily streak claimed: day ${result.currentStreak}`,
+            "celebrate"
+          ),
+          {
+            description: `+${result.rewardE1xp} E1XP added to your balance.`,
+            icon: getNotificationToastIcon("streak")
+          }
+        );
 
         await Promise.all([
           queryClient.invalidateQueries({

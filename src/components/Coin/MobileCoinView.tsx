@@ -28,10 +28,7 @@ import CoinMediaSlide from "@/components/Coin/CoinMediaSlide";
 import { Image, Spinner } from "@/components/Shared/UI";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import cn from "@/helpers/cn";
-import {
-  getTemporaryTestCoinMedia,
-  resolveCoinMedia
-} from "@/helpers/coinMedia";
+import { resolveCoinMedia } from "@/helpers/coinMedia";
 import formatRelativeOrAbsolute from "@/helpers/datetime/formatRelativeOrAbsolute";
 import {
   createCoinChatMessage,
@@ -466,9 +463,7 @@ const MobileCoinView = ({
   const collaborationMembers = collaboration?.members || [];
   const collaborationDisplayLabel = getCollaborationDisplayLabel(collaboration);
   const resolvedLaunchMedia = useMemo(
-    () =>
-      resolveCoinMedia(launchMediaUrl, launchCategory) ||
-      getTemporaryTestCoinMedia("track"),
+    () => resolveCoinMedia(launchMediaUrl, launchCategory),
     [launchCategory, launchMediaUrl]
   );
   const heroSlides = resolvedLaunchMedia
@@ -753,6 +748,16 @@ const MobileCoinView = ({
     label: string;
     value: MobileCoinTab;
   }> = [
+    { label: "About", value: "about" },
+    ...(hasFansCorner
+      ? [
+          {
+            count: nFormatter(liveChatterCount, 1) || "0",
+            label: "Fans Corner",
+            value: "chat" as const
+          }
+        ]
+      : []),
     {
       count: nFormatter(holderCount, 1) || "0",
       label: "Holders",
@@ -771,17 +776,7 @@ const MobileCoinView = ({
         : undefined,
       label: "FanDrop",
       value: "fandrop"
-    },
-    { label: "About", value: "about" },
-    ...(hasFansCorner
-      ? [
-          {
-            count: nFormatter(liveChatterCount, 1) || "0",
-            label: "Fans Corner",
-            value: "chat" as const
-          }
-        ]
-      : [])
+    }
   ];
   const chatInputPlaceholder = profile?.id
     ? canJoinFansCorner
@@ -929,291 +924,267 @@ const MobileCoinView = ({
             : "pb-[calc(env(safe-area-inset-bottom)+5.9rem)]"
         )}
       >
-        {activeTab === "about" ? (
-          <>
-            <div className="flex items-start justify-between gap-2.5 px-3.5 pt-3">
-              <div>
-                <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-                  <p className="font-semibold text-[1.75rem] text-gray-950 leading-none tracking-tight dark:text-white">
-                    {formatPrice(price)}
-                  </p>
-                  <p
-                    className={cn(
-                      "inline-flex items-center gap-1 pb-0.5 font-semibold text-[0.85rem] leading-none",
-                      changePercent >= 0 ? "text-emerald-400" : "text-rose-400"
-                    )}
-                  >
-                    <span>{changePercent >= 0 ? "+" : "-"}</span>
-                    <span>
-                      {formatPercent(changePercent).replace(/^[-+]/, "")}
-                    </span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex shrink-0 flex-col items-end gap-[1px] pt-0.5 text-right">
-                <div className="inline-flex items-center gap-0.5 whitespace-nowrap">
-                  <p className="font-medium text-[8px] text-gray-400 uppercase tracking-[0.1em] dark:text-white/45">
-                    MCAP
-                  </p>
-                  <p className="font-semibold text-[0.76rem] text-gray-950 dark:text-white">
-                    {formatUsdMetric(marketCapValue)}
-                  </p>
-                </div>
-                <div className="inline-flex items-center gap-0.5 whitespace-nowrap">
-                  <p className="font-medium text-[8px] text-gray-400 uppercase tracking-[0.1em] dark:text-white/45">
-                    VOL
-                  </p>
-                  <p className="font-semibold text-[0.76rem] text-gray-950 dark:text-white">
-                    {formatUsdMetric(volume24hValue)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2.5 px-3.5">
-              <div
-                className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth"
-                onScroll={(event) => {
-                  const target = event.currentTarget;
-                  const slides = Array.from(target.children) as HTMLElement[];
-
-                  if (!slides.length) {
-                    return;
-                  }
-
-                  const nextIndex = slides.reduce(
-                    (closestIndex, slide, index) => {
-                      const closestDistance = Math.abs(
-                        slides[closestIndex].offsetLeft - target.scrollLeft
-                      );
-                      const nextDistance = Math.abs(
-                        slide.offsetLeft - target.scrollLeft
-                      );
-
-                      return nextDistance < closestDistance
-                        ? index
-                        : closestIndex;
-                    },
-                    0
-                  );
-
-                  setActiveHeroSlide(
-                    clamp(nextIndex, 0, Math.max(heroSlides.length - 1, 0))
-                  );
-                }}
-                ref={heroSliderRef}
+        <div className="flex items-start justify-between gap-2.5 px-3.5 pt-3">
+          <div>
+            <div className="flex flex-wrap items-end gap-x-1.5 gap-y-1">
+              <p className="font-semibold text-[1.35rem] text-gray-950 leading-none tracking-tight dark:text-white">
+                {formatPrice(price)}
+              </p>
+              <p
+                className={cn(
+                  "inline-flex items-center gap-1 pb-0.5 font-semibold text-[0.75rem] leading-none",
+                  changePercent >= 0 ? "text-emerald-400" : "text-rose-400"
+                )}
               >
-                {heroSlides.map((slide) => (
-                  <Fragment key={slide}>
-                    {slide === "media" ? (
+                <span>{changePercent >= 0 ? "+" : "-"}</span>
+                <span>{formatPercent(changePercent).replace(/^[-+]/, "")}</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-col items-end gap-[1px] pt-0.5 text-right">
+            <div className="inline-flex items-center gap-0.5 whitespace-nowrap">
+              <p className="font-medium text-[8px] text-gray-400 uppercase tracking-[0.1em] dark:text-white/45">
+                MCAP
+              </p>
+              <p className="font-semibold text-[0.76rem] text-gray-950 dark:text-white">
+                {formatUsdMetric(marketCapValue)}
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-0.5 whitespace-nowrap">
+              <p className="font-medium text-[8px] text-gray-400 uppercase tracking-[0.1em] dark:text-white/45">
+                VOL
+              </p>
+              <p className="font-semibold text-[0.76rem] text-gray-950 dark:text-white">
+                {formatUsdMetric(volume24hValue)}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2.5 px-3.5">
+          <div
+            className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth"
+            onScroll={(event) => {
+              const target = event.currentTarget;
+              const slides = Array.from(target.children) as HTMLElement[];
+
+              if (!slides.length) {
+                return;
+              }
+
+              const nextIndex = slides.reduce((closestIndex, slide, index) => {
+                const closestDistance = Math.abs(
+                  slides[closestIndex].offsetLeft - target.scrollLeft
+                );
+                const nextDistance = Math.abs(
+                  slide.offsetLeft - target.scrollLeft
+                );
+
+                return nextDistance < closestDistance ? index : closestIndex;
+              }, 0);
+
+              setActiveHeroSlide(
+                clamp(nextIndex, 0, Math.max(heroSlides.length - 1, 0))
+              );
+            }}
+            ref={heroSliderRef}
+          >
+            {heroSlides.map((slide) => (
+              <Fragment key={slide}>
+                {slide === "media" ? (
                       <CoinMediaSlide
                         category={launchCategory}
                         coverImage={coverImage}
-                        fallbackVariant="track"
                         mediaUrl={launchMediaUrl}
-                        showTestFallback
                         title={coin.name}
                       />
-                    ) : slide === "chart" ? (
-                      <div className="relative w-full shrink-0 snap-center overflow-hidden rounded-[1rem] border border-gray-200 bg-white px-1.5 py-1 dark:border-white/8 dark:bg-[#0f0f10]">
-                        <div className="absolute inset-x-0 top-0 h-10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.12),_transparent_60%)] dark:bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_60%)]" />
-                        {chartLoading ? (
-                          <div className="absolute top-3 right-3">
-                            <Spinner size="xs" />
-                          </div>
-                        ) : null}
-                        <div className="relative">
-                          <div className="flex justify-between px-2.5 text-[10px] text-gray-400 dark:text-white/45">
-                            <span>{chartData.highLabel}</span>
-                            <span />
-                          </div>
+                ) : slide === "chart" ? (
+                  <div className="relative w-full shrink-0 snap-center overflow-hidden rounded-[1rem] border border-gray-200 bg-white px-1.5 py-1 dark:border-white/8 dark:bg-[#0f0f10]">
+                    <div className="absolute inset-x-0 top-0 h-10 bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.12),_transparent_60%)] dark:bg-[radial-gradient(circle_at_top,_rgba(34,197,94,0.18),_transparent_60%)]" />
+                    {chartLoading ? (
+                      <div className="absolute top-3 right-3">
+                        <Spinner size="xs" />
+                      </div>
+                    ) : null}
+                    <div className="relative">
+                      <div className="flex justify-between px-2.5 text-[10px] text-gray-400 dark:text-white/45">
+                        <span>{chartData.highLabel}</span>
+                        <span />
+                      </div>
 
-                          <svg
-                            aria-label={`${coin.name} price chart`}
-                            className="mt-0.5 h-[5.6rem] w-full"
-                            preserveAspectRatio="none"
-                            viewBox="0 0 340 220"
+                      <svg
+                        aria-label={`${coin.name} price chart`}
+                        className="mt-0.5 h-[5.6rem] w-full"
+                        preserveAspectRatio="none"
+                        viewBox="0 0 340 220"
+                      >
+                        <title>{`${coin.name} price chart`}</title>
+                        <defs>
+                          <linearGradient
+                            id="coin-mobile-chart-gradient"
+                            x1="0%"
+                            x2="0%"
+                            y1="0%"
+                            y2="100%"
                           >
-                            <title>{`${coin.name} price chart`}</title>
-                            <defs>
-                              <linearGradient
-                                id="coin-mobile-chart-gradient"
-                                x1="0%"
-                                x2="0%"
-                                y1="0%"
-                                y2="100%"
-                              >
-                                <stop
-                                  offset="0%"
-                                  stopColor="rgba(34,197,94,0.34)"
-                                />
-                                <stop
-                                  offset="100%"
-                                  stopColor="rgba(34,197,94,0)"
-                                />
-                              </linearGradient>
-                            </defs>
-                            <path
-                              d={chartData.areaPath}
-                              fill="url(#coin-mobile-chart-gradient)"
+                            <stop
+                              offset="0%"
+                              stopColor="rgba(34,197,94,0.34)"
                             />
-                            <path
-                              d={chartData.linePath}
-                              fill="none"
-                              stroke="#4ADE80"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth="4"
+                            <stop
+                              offset="100%"
+                              stopColor="rgba(34,197,94,0)"
                             />
-                            <circle
-                              cx={
-                                chartData.points[chartData.points.length - 1].x
-                              }
-                              cy={
-                                chartData.points[chartData.points.length - 1].y
-                              }
-                              fill="rgba(74,222,128,0.18)"
-                              r="13"
-                            />
-                            <circle
-                              cx={
-                                chartData.points[chartData.points.length - 1].x
-                              }
-                              cy={
-                                chartData.points[chartData.points.length - 1].y
-                              }
-                              fill="#4ADE80"
-                              r="6.5"
-                              stroke="#0b0b0b"
-                              strokeWidth="4"
-                            />
-                          </svg>
-
-                          <div className="mt-0.5 flex justify-between px-2.5 text-[10px] text-gray-400 dark:text-white/45">
-                            <span>{chartData.lowLabel}</span>
-                            <span />
-                          </div>
-
-                          <div className="mt-2 flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-0.5">
-                              {CHART_RANGES.map((range) => (
-                                <button
-                                  className={cn(
-                                    "rounded-full px-2 py-1 font-medium text-[9px] transition-colors",
-                                    activeRange === range
-                                      ? "bg-gray-900 text-white dark:bg-white/10 dark:text-white"
-                                      : "text-gray-400 dark:text-white/42"
-                                  )}
-                                  key={range}
-                                  onClick={() => setActiveRange(range)}
-                                  type="button"
-                                >
-                                  {range}
-                                </button>
-                              ))}
-                            </div>
-
-                            <div className="inline-flex h-7 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 text-[9px] dark:border-white/10 dark:bg-white/[0.04]">
-                              <span className="font-medium text-gray-400 uppercase tracking-[0.08em] dark:text-white/45">
-                                Hold
-                              </span>
-                              <span className="font-semibold text-gray-950 dark:text-white">
-                                {formattedHoldingAmount}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="relative h-[11.25rem] w-full shrink-0 snap-center overflow-hidden rounded-[1rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#0f0f10]">
-                        <Image
-                          alt={coin.name}
-                          className="h-full w-full object-cover"
-                          src={coverImage}
+                          </linearGradient>
+                        </defs>
+                        <path
+                          d={chartData.areaPath}
+                          fill="url(#coin-mobile-chart-gradient)"
                         />
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-3 py-3">
-                          <div className="flex items-end gap-2.5">
-                            {collaborationMembers.length > 1 ? (
-                              <div className="relative h-9 w-[3.25rem]">
-                                {collaborationMembers
-                                  .slice(0, 2)
-                                  .map((member, index) => (
-                                    <Image
-                                      alt={formatCollaborationMemberLabel(
-                                        member
-                                      )}
-                                      className={cn(
-                                        "absolute top-0 size-9 rounded-full border border-white/40 object-cover",
-                                        index === 0
-                                          ? "left-0 z-10"
-                                          : "right-0 z-20"
-                                      )}
-                                      height={36}
-                                      key={member.profileId}
-                                      src={member.avatarUrl || DEFAULT_AVATAR}
-                                      width={36}
-                                    />
-                                  ))}
-                              </div>
-                            ) : (
-                              <Image
-                                alt={creatorDisplayName}
-                                className="size-9 rounded-full border border-white/40 object-cover"
-                                height={36}
-                                src={creatorAvatar || DEFAULT_AVATAR}
-                                width={36}
-                              />
-                            )}
-                            <div className="min-w-0">
-                              <div className="flex min-w-0 items-center gap-1.5">
-                                <p className="truncate font-semibold text-[0.95rem] text-white">
-                                  {collaborationDisplayLabel ||
-                                    creatorDisplayName}
-                                </p>
-                                {creatorIsOfficial ? (
-                                  <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
-                                ) : null}
-                              </div>
-                              <p className="truncate text-[10px] text-white/78">
-                                {collaboration
-                                  ? `${collaboration.activeMemberCount} collaborators`
-                                  : creatorHandle}
-                              </p>
-                            </div>
-                          </div>
+                        <path
+                          d={chartData.linePath}
+                          fill="none"
+                          stroke="#4ADE80"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="4"
+                        />
+                        <circle
+                          cx={chartData.points[chartData.points.length - 1].x}
+                          cy={chartData.points[chartData.points.length - 1].y}
+                          fill="rgba(74,222,128,0.18)"
+                          r="13"
+                        />
+                        <circle
+                          cx={chartData.points[chartData.points.length - 1].x}
+                          cy={chartData.points[chartData.points.length - 1].y}
+                          fill="#4ADE80"
+                          r="6.5"
+                          stroke="#0b0b0b"
+                          strokeWidth="4"
+                        />
+                      </svg>
+
+                      <div className="mt-0.5 flex justify-between px-2.5 text-[10px] text-gray-400 dark:text-white/45">
+                        <span>{chartData.lowLabel}</span>
+                        <span />
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-0.5">
+                          {CHART_RANGES.map((range) => (
+                            <button
+                              className={cn(
+                                "rounded-full px-2 py-1 font-medium text-[9px] transition-colors",
+                                activeRange === range
+                                  ? "bg-gray-900 text-white dark:bg-white/10 dark:text-white"
+                                  : "text-gray-400 dark:text-white/42"
+                              )}
+                              key={range}
+                              onClick={() => setActiveRange(range)}
+                              type="button"
+                            >
+                              {range}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="inline-flex h-7 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 text-[9px] dark:border-white/10 dark:bg-white/[0.04]">
+                          <span className="font-medium text-gray-400 uppercase tracking-[0.08em] dark:text-white/45">
+                            Hold
+                          </span>
+                          <span className="font-semibold text-gray-950 dark:text-white">
+                            {formattedHoldingAmount}
+                          </span>
                         </div>
                       </div>
-                    )}
-                  </Fragment>
-                ))}
-              </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative h-[11.25rem] w-full shrink-0 snap-center overflow-hidden rounded-[1rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#0f0f10]">
+                    <Image
+                      alt={coin.name}
+                      className="h-full w-full object-cover"
+                      src={coverImage}
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-3 py-3">
+                      <div className="flex items-end gap-2.5">
+                        {collaborationMembers.length > 1 ? (
+                          <div className="relative h-9 w-[3.25rem]">
+                            {collaborationMembers
+                              .slice(0, 2)
+                              .map((member, index) => (
+                                <Image
+                                  alt={formatCollaborationMemberLabel(member)}
+                                  className={cn(
+                                    "absolute top-0 size-9 rounded-full border border-white/40 object-cover",
+                                    index === 0
+                                      ? "left-0 z-10"
+                                      : "right-0 z-20"
+                                  )}
+                                  height={36}
+                                  key={member.profileId}
+                                  src={member.avatarUrl || DEFAULT_AVATAR}
+                                  width={36}
+                                />
+                              ))}
+                          </div>
+                        ) : (
+                          <Image
+                            alt={creatorDisplayName}
+                            className="size-9 rounded-full border border-white/40 object-cover"
+                            height={36}
+                            src={creatorAvatar || DEFAULT_AVATAR}
+                            width={36}
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <p className="truncate font-semibold text-[0.95rem] text-white">
+                              {collaborationDisplayLabel || creatorDisplayName}
+                            </p>
+                            {creatorIsOfficial ? (
+                              <CheckBadgeIcon className="size-3.5 shrink-0 text-brand-500" />
+                            ) : null}
+                          </div>
+                          <p className="truncate text-[10px] text-white/78">
+                            {collaboration
+                              ? `${collaboration.activeMemberCount} collaborators`
+                              : creatorHandle}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </Fragment>
+            ))}
+          </div>
 
-              <div className="mt-2 flex items-center justify-center gap-1.5">
-                {heroSlides.map((slide, index) => (
-                  <button
-                    aria-label={
-                      slide === "media"
-                        ? "Show creator content"
-                        : slide === "chart"
-                          ? "Show chart"
-                          : "Show cover art"
-                    }
-                    className={cn(
-                      "h-1.5 rounded-full transition-all",
-                      activeHeroSlide === index
-                        ? "w-5 bg-gray-950 dark:bg-white"
-                        : "w-1.5 bg-gray-300 dark:bg-white/20"
-                    )}
-                    key={index}
-                    onClick={() => scrollToHeroSlide(index)}
-                    type="button"
-                  />
-                ))}
-              </div>
-            </div>
-          </>
-        ) : null}
+          <div className="mt-2 flex items-center justify-center gap-1.5">
+            {heroSlides.map((slide, index) => (
+              <button
+                aria-label={
+                  slide === "media"
+                    ? "Show creator content"
+                    : slide === "chart"
+                      ? "Show chart"
+                      : "Show cover art"
+                }
+                className={cn(
+                  "h-1.5 rounded-full transition-all",
+                  activeHeroSlide === index
+                    ? "w-5 bg-gray-950 dark:bg-white"
+                    : "w-1.5 bg-gray-300 dark:bg-white/20"
+                )}
+                key={index}
+                onClick={() => scrollToHeroSlide(index)}
+                type="button"
+              />
+            ))}
+          </div>
+        </div>
 
         <div className="mt-3 px-3.5" ref={aboutSectionRef}>
           <div className="no-scrollbar -mx-0.5 flex gap-1.5 overflow-x-auto pb-1">
@@ -1315,7 +1286,7 @@ const MobileCoinView = ({
               ) : null}
             </section>
 
-            <section className="mt-2 overflow-hidden rounded-[0.82rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+            <section className="mt-2 overflow-hidden rounded-[0.82rem] bg-white dark:bg-[#121212]">
               <button
                 className="flex w-full items-center justify-between gap-2 px-2.75 py-2 text-left"
                 onClick={() => setShowStatsDetails((value) => !value)}
@@ -1337,7 +1308,7 @@ const MobileCoinView = ({
                 />
               </button>
               {showStatsDetails ? (
-                <div className="border-gray-200 border-t px-3 py-2.5 dark:border-white/8">
+                <div className="px-3 py-2.5">
                   <div className="space-y-2">
                     {[
                       { label: "Age", value: formatAgeLong(createdAt) },
@@ -1388,7 +1359,7 @@ const MobileCoinView = ({
               ) : null}
             </section>
 
-            <section className="mt-2 overflow-hidden rounded-[0.82rem] border border-gray-200 bg-white dark:border-white/8 dark:bg-[#121212]">
+            <section className="mt-2 overflow-hidden rounded-[0.82rem] bg-white dark:bg-[#121212]">
               <button
                 className="flex w-full items-center justify-between gap-2 px-2.75 py-2 text-left"
                 onClick={() => setShowContractDetails((value) => !value)}
@@ -1410,7 +1381,7 @@ const MobileCoinView = ({
                 />
               </button>
               {showContractDetails ? (
-                <div className="border-gray-200 border-t px-3 py-2.5 dark:border-white/8">
+                <div className="px-3 py-2.5">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-[10px] text-gray-400 dark:text-white/38">

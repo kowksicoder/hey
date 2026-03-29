@@ -115,6 +115,7 @@ const fiatFetch = async <TResponse>({
   method = "GET",
   path,
   profileId,
+  profileIdHeader,
   walletAddress,
   walletClient
 }: {
@@ -122,6 +123,7 @@ const fiatFetch = async <TResponse>({
   method?: "GET" | "POST";
   path: string;
   profileId?: string;
+  profileIdHeader?: string;
   walletAddress?: Address;
   walletClient?: WalletClient;
 }) => {
@@ -142,6 +144,10 @@ const fiatFetch = async <TResponse>({
 
   if (bodyString) {
     headers["content-type"] = "application/json";
+  }
+
+  if (profileIdHeader) {
+    headers["x-every1-profile-id"] = profileIdHeader;
   }
 
   if (profileId && walletAddress && walletClient) {
@@ -201,6 +207,13 @@ export const getFiatWallet = (input: {
     ...input
   });
 
+export const getFiatWalletPublic = (profileId: string) =>
+  fiatFetch<FiatWalletResponse>({
+    method: "GET",
+    path: "/api/wallet",
+    profileIdHeader: profileId
+  });
+
 export const getFiatWalletTransactions = (input: {
   limit?: number;
   profileId: string;
@@ -213,6 +226,16 @@ export const getFiatWalletTransactions = (input: {
     profileId: input.profileId,
     walletAddress: input.walletAddress,
     walletClient: input.walletClient
+  });
+
+export const getFiatWalletTransactionsPublic = (
+  profileId: string,
+  limit?: number
+) =>
+  fiatFetch<FiatWalletTransactionsResponse>({
+    method: "GET",
+    path: `/api/wallet/transactions${limit ? `?limit=${limit}` : ""}`,
+    profileIdHeader: profileId
   });
 
 export const initiateFiatDeposit = (
@@ -236,6 +259,25 @@ export const initiateFiatDeposit = (
     profileId: input.profileId,
     walletAddress: input.walletAddress,
     walletClient: input.walletClient
+  });
+
+export const initiateFiatDepositPublic = (
+  input: FiatDepositInitiateInput & {
+    profileId: string;
+  }
+) =>
+  fiatFetch<FiatDepositInitiateResponse>({
+    body: {
+      amountNaira: input.amountNaira,
+      email: input.email,
+      idempotencyKey: input.idempotencyKey,
+      name: input.name,
+      phone: input.phone,
+      redirectUrl: input.redirectUrl
+    },
+    method: "POST",
+    path: "/api/wallet/deposit/initiate",
+    profileIdHeader: input.profileId
   });
 
 export const withdrawFiat = (

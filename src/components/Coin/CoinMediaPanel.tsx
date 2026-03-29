@@ -1,10 +1,7 @@
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { Image } from "@/components/Shared/UI";
 import cn from "@/helpers/cn";
-import {
-  getTemporaryTestCoinMedia,
-  resolveCoinMedia
-} from "@/helpers/coinMedia";
+import { resolveCoinMedia } from "@/helpers/coinMedia";
 
 const providerLabel: Record<
   NonNullable<ReturnType<typeof resolveCoinMedia>>["provider"],
@@ -20,9 +17,7 @@ interface CoinMediaPanelProps {
   category?: null | string;
   compact?: boolean;
   coverImage?: null | string;
-  fallbackVariant?: "album" | "track";
   mediaUrl?: null | string;
-  showTestFallback?: boolean;
   title: string;
 }
 
@@ -30,14 +25,10 @@ const CoinMediaPanel = ({
   category,
   compact = false,
   coverImage,
-  fallbackVariant = "album",
   mediaUrl,
-  showTestFallback = false,
   title
 }: CoinMediaPanelProps) => {
-  const media =
-    resolveCoinMedia(mediaUrl, category) ||
-    (showTestFallback ? getTemporaryTestCoinMedia(fallbackVariant) : null);
+  const media = resolveCoinMedia(mediaUrl, category);
 
   if (!media) {
     return null;

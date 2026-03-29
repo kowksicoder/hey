@@ -6,6 +6,9 @@ const getTokenImage = (symbol?: string): string => {
   }
 
   const symbolLowerCase = symbol?.toLowerCase() || "";
+  if (symbolLowerCase === "ngn" || symbolLowerCase === "naira") {
+    return "/images/tokens/ngn.svg";
+  }
   return `${STATIC_IMAGES_URL}/tokens/${symbolLowerCase}.svg`;
 };
 

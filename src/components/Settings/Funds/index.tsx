@@ -14,6 +14,7 @@ const FundsSettings = () => {
     <PageLayout
       description="Manage deposits, cash out, swaps, and wallet balances."
       title="Wallet"
+      zeroTopMargin
     >
       <Balances />
     </PageLayout>

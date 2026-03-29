@@ -1,9 +1,6 @@
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { Image } from "@/components/Shared/UI";
-import {
-  getTemporaryTestCoinMedia,
-  resolveCoinMedia
-} from "@/helpers/coinMedia";
+import { resolveCoinMedia } from "@/helpers/coinMedia";
 
 const providerLabel: Record<
   NonNullable<ReturnType<typeof resolveCoinMedia>>["provider"],
@@ -18,23 +15,17 @@ const providerLabel: Record<
 interface CoinMediaSlideProps {
   category?: null | string;
   coverImage?: null | string;
-  fallbackVariant?: "album" | "track";
   mediaUrl?: null | string;
-  showTestFallback?: boolean;
   title: string;
 }
 
 const CoinMediaSlide = ({
   category,
   coverImage,
-  fallbackVariant = "track",
   mediaUrl,
-  showTestFallback = false,
   title
 }: CoinMediaSlideProps) => {
-  const media =
-    resolveCoinMedia(mediaUrl, category) ||
-    (showTestFallback ? getTemporaryTestCoinMedia(fallbackVariant) : null);
+  const media = resolveCoinMedia(mediaUrl, category);
 
   if (!media) {
     return null;

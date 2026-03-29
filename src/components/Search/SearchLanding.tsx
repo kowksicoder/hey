@@ -18,21 +18,12 @@ import {
   getFeaturedCreatorAge
 } from "@/helpers/liveCreatorData";
 
-const SectionHeader = ({
-  title,
-  subtitle
-}: {
-  subtitle: string;
-  title: string;
-}) => (
+const SectionHeader = ({ title }: { title: string }) => (
   <div className="flex items-end justify-between gap-3">
     <div>
       <H5 className="font-semibold text-[15px] text-gray-900 md:text-[18px] dark:text-white">
         {title}
       </H5>
-      <p className="mt-1 text-[12px] text-gray-500 md:text-[13px] dark:text-gray-400">
-        {subtitle}
-      </p>
     </div>
   </div>
 );
@@ -63,7 +54,7 @@ const ShortcutTabs = memo(() => {
     <Tabs
       active={active}
       className="mb-0"
-      itemClassName="rounded-xl border border-gray-200/80 bg-white px-2.5 py-1.5 font-medium text-[11px] text-gray-700 md:rounded-2xl md:px-3 md:py-1.75 md:text-[12px] dark:border-gray-800/80 dark:bg-[#090909] dark:text-gray-200"
+      itemClassName="rounded-lg border border-gray-200/80 bg-white px-2 py-1 text-[10px] font-medium text-gray-700 md:rounded-2xl md:px-3 md:py-1.75 md:text-[12px] dark:border-gray-800/80 dark:bg-[#090909] dark:text-gray-200"
       layoutId="search_shortcuts"
       mobileScrollable
       setActive={(type) => {
@@ -160,18 +151,12 @@ const SearchLanding = () => {
       <ShortcutTabs />
 
       <section className="space-y-3">
-        <SectionHeader
-          subtitle="Live coin discovery from launches created on Every1."
-          title="Trending Coins"
-        />
+        <SectionHeader title="Trending Coins" />
         <TrendingCoinsCard />
       </section>
 
       <section className="space-y-3">
-        <SectionHeader
-          subtitle="Creators building and launching coins on Every1."
-          title="Trending Creators"
-        />
+        <SectionHeader title="Trending Creators" />
         {creatorsQuery.isLoading ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 3 }, (_, index) => (
@@ -196,10 +181,7 @@ const SearchLanding = () => {
       </section>
 
       <section className="space-y-3">
-        <SectionHeader
-          subtitle="Public communities worth jumping into."
-          title="Communities to Join"
-        />
+        <SectionHeader title="Communities to Join" />
         {communitiesQuery.isLoading ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 3 }, (_, index) => (

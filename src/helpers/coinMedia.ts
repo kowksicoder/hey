@@ -24,14 +24,6 @@ export interface ResolvedCoinMedia {
 }
 
 const SPOTIFY_COMPACT_TYPES = new Set(["episode", "track"]);
-const TEST_SPOTIFY_TRACK_SOURCE_URL =
-  "https://open.spotify.com/track/5YrBnxZSRpzYHOBCUfGFw1";
-const TEST_SPOTIFY_TRACK_EMBED_URL =
-  "https://open.spotify.com/embed/track/5YrBnxZSRpzYHOBCUfGFw1?utm_source=generator&theme=0";
-const TEST_SPOTIFY_ALBUM_SOURCE_URL =
-  "https://open.spotify.com/album/6ioyq5pfnljh86aAouCAw4";
-const TEST_SPOTIFY_ALBUM_EMBED_URL =
-  "https://open.spotify.com/embed/album/6ioyq5pfnljh86aAouCAw4?utm_source=generator&theme=0";
 
 const extractYouTubeId = (url: URL) => {
   if (url.hostname === "youtu.be") {
@@ -222,33 +214,5 @@ export const resolveCoinMedia = (
         : mediaIntent === "movie"
           ? "Trailer link"
           : "Project link"
-  };
-};
-
-export const getTemporaryTestCoinMedia = (
-  variant: "album" | "track" = "track"
-): ResolvedCoinMedia => {
-  if (variant === "album") {
-    return {
-      ctaLabel: "Open in Spotify",
-      embedHeight: 352,
-      embedUrl: TEST_SPOTIFY_ALBUM_EMBED_URL,
-      kind: "audio",
-      lockLabel: "album",
-      provider: "spotify",
-      sourceUrl: TEST_SPOTIFY_ALBUM_SOURCE_URL,
-      title: "Album"
-    };
-  }
-
-  return {
-    ctaLabel: "Open in Spotify",
-    embedHeight: 152,
-    embedUrl: TEST_SPOTIFY_TRACK_EMBED_URL,
-    kind: "audio",
-    lockLabel: "song",
-    provider: "spotify",
-    sourceUrl: TEST_SPOTIFY_TRACK_SOURCE_URL,
-    title: "Song"
   };
 };

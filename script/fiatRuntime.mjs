@@ -3,7 +3,10 @@ import { createClient } from "@supabase/supabase-js";
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
-import { authenticateFiatRequest } from "./fiat/auth.mjs";
+import {
+  authenticateFiatReadRequest,
+  authenticateFiatRequest
+} from "./fiat/auth.mjs";
 import { createFlutterwaveClient } from "./fiat/integrations/flutterwave.mjs";
 import { createMarketPriceClient } from "./fiat/integrations/marketPrice.mjs";
 import { createCreatorService } from "./fiat/services/creatorService.mjs";
@@ -201,6 +204,19 @@ export const createFiatRuntime = ({ rootDir }) => {
     });
   };
 
+  const withReadAuth = async (request) => {
+    if (!supabase) {
+      const error = new Error("Fiat runtime is not configured on this server.");
+      error.statusCode = 503;
+      throw error;
+    }
+
+    return authenticateFiatReadRequest({
+      request,
+      supabase
+    });
+  };
+
   const handleApiRequest = async (request, response) => {
     const requestUrl = new URL(request.url || "/", "http://localhost");
     const pathname = requestUrl.pathname;
@@ -234,7 +250,12 @@ export const createFiatRuntime = ({ rootDir }) => {
       }
 
       if (request.method === "GET" && pathname === "/api/wallet") {
-        const { profile } = await withAuth(request);
+        const hasSignature = Boolean(
+          request.headers["x-every1-signature"]
+        );
+        const { profile } = hasSignature
+          ? await withAuth(request)
+          : await withReadAuth(request);
         const payload = await walletService.getWallet({
           profileId: profile.id
         });
@@ -259,7 +280,12 @@ export const createFiatRuntime = ({ rootDir }) => {
       }
 
       if (request.method === "GET" && pathname === "/api/wallet/transactions") {
-        const { profile } = await withAuth(request);
+        const hasSignature = Boolean(
+          request.headers["x-every1-signature"]
+        );
+        const { profile } = hasSignature
+          ? await withAuth(request)
+          : await withReadAuth(request);
         const payload = await walletService.listTransactions({
           limit: requestUrl.searchParams.get("limit"),
           profileId: profile.id
@@ -274,7 +300,12 @@ export const createFiatRuntime = ({ rootDir }) => {
       ) {
         const rawBody = await readRawBody(request);
         const body = parseJsonBody(rawBody);
-        const { profile } = await withAuth(request, rawBody);
+        const hasSignature = Boolean(
+          request.headers["x-every1-signature"]
+        );
+        const { profile } = hasSignature
+          ? await withAuth(request, rawBody)
+          : await withReadAuth(request);
         const result = await walletService.initiateDeposit({
           body,
           profileId: profile.id

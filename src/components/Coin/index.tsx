@@ -948,9 +948,7 @@ const Coin = () => {
                   <CoinMediaPanel
                     category={launchCategory}
                     coverImage={previewImage}
-                    fallbackVariant="album"
                     mediaUrl={launchMediaUrl}
-                    showTestFallback
                     title={coin.name}
                   />
 

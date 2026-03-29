@@ -1,5 +1,6 @@
 import {
   BellIcon,
+  BanknotesIcon,
   ChatBubbleOvalLeftEllipsisIcon,
   CheckBadgeIcon,
   FireIcon,
@@ -94,7 +95,7 @@ const VISUALS: Record<
   },
   payment: {
     animationClassName: "every1-icon-float",
-    Icon: GiftIcon,
+    Icon: BanknotesIcon,
     iconClassName: "text-lime-600 dark:text-lime-300",
     wrapperClassName:
       "bg-lime-500/12 ring-1 ring-lime-500/18 dark:bg-lime-500/14 dark:ring-lime-400/20"

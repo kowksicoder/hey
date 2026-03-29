@@ -145,11 +145,11 @@ const MobileDrawerMenu = () => {
 
   return (
     <div
-      className="fixed inset-0 z-10 bg-black/8 px-2.5 pt-12 pb-3 backdrop-blur-[1px] md:hidden"
+      className="fixed inset-0 z-10 bg-black/8 px-2.5 pt-10 pb-2 backdrop-blur-[1px] md:hidden"
       onClick={handleCloseDrawer}
     >
       <div
-        className="max-h-[calc(100dvh-4rem)] w-[15.75rem] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-[1.15rem] bg-white p-1.5 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.32)] dark:bg-gray-950 dark:shadow-none"
+        className="max-h-[calc(100dvh-6.5rem)] w-[15.75rem] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-[1.15rem] bg-white p-1.5 shadow-[0_16px_40px_-28px_rgba(15,23,42,0.32)] dark:bg-gray-950 dark:shadow-none"
         onClick={(event) => event.stopPropagation()}
       >
         {currentAccount ? null : (
