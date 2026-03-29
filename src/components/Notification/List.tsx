@@ -5,7 +5,6 @@ import Loader from "@/components/Shared/Loader";
 import { Card, EmptyState, ErrorMessage, Image } from "@/components/Shared/UI";
 import { NotificationFeedType } from "@/data/enums";
 import formatRelativeOrAbsolute from "@/helpers/datetime/formatRelativeOrAbsolute";
-import buildEngagementNotifications from "@/helpers/engagementNotifications";
 import {
   EVERY1_NOTIFICATION_COUNT_QUERY_KEY,
   EVERY1_NOTIFICATIONS_QUERY_KEY,
@@ -68,10 +67,6 @@ const List = ({ feedType }: ListProps) => {
   const isMarkingNotifications = useRef(false);
   const inFlightNotificationIds = useRef("");
   const lastMarkedNotificationIds = useRef("");
-  const engagementNotifications = useMemo(
-    () => buildEngagementNotifications(profile),
-    [profile?.id]
-  );
   const { data, error, isLoading } = useEvery1Notifications({
     limit: 80,
     refetchInterval: 15000,
@@ -80,14 +75,13 @@ const List = ({ feedType }: ListProps) => {
 
   const notifications = useMemo(() => {
     const allowedKinds = FEED_KIND_MAP[feedType as NotificationFeedType];
-    const combined = [...engagementNotifications, ...(data || [])];
-    return combined
+    return (data || [])
       .filter((notification) => allowedKinds.includes(notification.kind))
       .sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
-  }, [data, engagementNotifications, feedType]);
+  }, [data, feedType]);
 
   useEffect(() => {
     if (
