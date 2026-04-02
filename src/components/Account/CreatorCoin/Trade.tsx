@@ -3,7 +3,7 @@ import {
   BackspaceIcon,
   ChevronDownIcon
 } from "@heroicons/react/24/outline";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { GetCoinResponse } from "@zoralabs/coins-sdk";
 import {
   createTradeCall,
@@ -50,18 +50,31 @@ import {
 import {
   executeSell,
   executeSupport,
-  getSellQuote,
-  getSupportQuote
+  getFiatWalletPublic,
+  getSellExecutionStatusPublic,
+  getSellQuotePublic,
+  getSupportExecutionStatusPublic,
+  getSupportQuotePublic
 } from "@/helpers/fiat";
 import {
   createFiatIdempotencyKey,
-  normalizeFiatUiError
+  getFiatExecutionStatus,
+  isFiatExecutionCompleted,
+  isFiatExecutionFailed,
+  normalizeFiatUiError,
+  pollFiatExecutionUntilSettled,
+  shouldPollFiatExecution
 } from "@/helpers/fiatUi";
-import { formatNaira, formatNairaFromUsd, NAIRA_SYMBOL } from "@/helpers/formatNaira";
+import {
+  formatNaira,
+  formatNairaFromUsd,
+  NAIRA_SYMBOL
+} from "@/helpers/formatNaira";
 import { announceTelegramTrade } from "@/helpers/telegramAnnouncements";
 import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import useHandleWrongNetwork from "@/hooks/useHandleWrongNetwork";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
+import type { FiatTradeFundingSummary, FiatWalletSummary } from "@/types/fiat";
 
 interface TradeModalProps {
   coin: NonNullable<GetCoinResponse["zora20Token"]>;
@@ -80,6 +93,7 @@ type TradeStatusModalState = null | {
 type FiatQuoteState = null | {
   amountLabel: string;
   expiresAt: string;
+  funding?: null | FiatTradeFundingSummary;
   quoteId: string;
   settlement?: {
     address: Address;
@@ -87,6 +101,39 @@ type FiatQuoteState = null | {
     transferAmountRaw: string;
   };
   summary: string;
+  wallet?: null | FiatWalletSummary;
+};
+
+const DEFAULT_SLIPPAGE = 0.005;
+
+const formatSlippageLabel = (value: number) => {
+  const percent = value * 100;
+  const digits = percent >= 1 ? 1 : 2;
+  return `${percent.toFixed(digits).replace(/\.0+$/, "")}%`;
+};
+
+const describeFiatFundingBalance = (
+  funding?: null | FiatTradeFundingSummary
+) => {
+  if (!funding) {
+    return "Every1 Naira balance";
+  }
+
+  return funding.tradeFundingRail === "cngn"
+    ? "cNGN-backed Naira balance"
+    : "Every1 Naira balance";
+};
+
+const describeFiatPayoutBalance = (
+  funding?: null | FiatTradeFundingSummary
+) => {
+  if (!funding) {
+    return "Every1 Naira balance";
+  }
+
+  return funding.payoutRail === "cngn"
+    ? "cNGN-backed Naira balance"
+    : "Every1 Naira balance";
 };
 
 const Trade = ({
@@ -117,6 +164,18 @@ const Trade = ({
     []
   );
   const handleWrongNetwork = useHandleWrongNetwork();
+  const publicFiatWalletQuery = useQuery({
+    enabled: Boolean(profile?.id),
+    queryFn: () => {
+      if (!profile?.id) {
+        throw new Error("Profile id is required.");
+      }
+
+      return getFiatWalletPublic(profile.id);
+    },
+    queryKey: ["fiat-wallet-public", profile?.id],
+    staleTime: 20_000
+  });
 
   const [mode, setMode] = useState<Mode>(initialMode);
   const [tradeRail, setTradeRail] = useState<TradeRail>("fiat");
@@ -280,7 +339,7 @@ const Trade = ({
         buy: { address: coin.address as Address, type: "erc20" },
         sell: { type: "eth" },
         sender: address,
-        slippage: 0.1
+        slippage: DEFAULT_SLIPPAGE
       };
     }
 
@@ -289,19 +348,24 @@ const Trade = ({
       buy: { type: "eth" },
       sell: { address: coin.address as Address, type: "erc20" },
       sender: address,
-      slippage: 0.1
+      slippage: DEFAULT_SLIPPAGE
     };
   };
 
   const parsedAmount = Number.parseFloat(amount || "0");
   const hasValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
   const isFiatRail = tradeRail === "fiat";
+  const isFiatTradeEnabled =
+    import.meta.env.VITE_ENABLE_FIAT_TRADES !== "false";
 
   const handleFiatQuote = async () => {
-    if (!profile?.id || !fiatWalletClient?.account || !fiatWalletAddress) {
-      toast.error(
-        "Preparing your Every1 wallet. Please try again in a moment."
-      );
+    if (!isFiatTradeEnabled) {
+      toast.error("Naira trades are disabled while using test balances.");
+      return;
+    }
+
+    if (!profile?.id) {
+      toast.error("Sign in to get a Naira quote.");
       return;
     }
 
@@ -324,16 +388,12 @@ const Trade = ({
       setFiatQuoteError(null);
 
       if (mode === "buy") {
-        const activeExecutionWalletAddress =
-          await resolveFiatExecutionWalletAddress();
-        const quote = await getSupportQuote({
+        const quote = await getSupportQuotePublic({
           coinAddress: coin.address as Address,
-          executionWalletAddress: activeExecutionWalletAddress,
+          executionWalletAddress: executionWalletAddress || undefined,
           idempotencyKey: createFiatIdempotencyKey("support-quote"),
           nairaAmount: parsedAmount,
-          profileId: profile.id,
-          walletAddress: fiatWalletAddress,
-          walletClient: fiatWalletClient
+          profileId: profile.id
         });
 
         setFiatQuote({
@@ -341,28 +401,31 @@ const Trade = ({
             maximumFractionDigits: 2
           })} ${symbol || "TOKEN"}`,
           expiresAt: quote.expires_at,
+          funding: quote.funding || null,
           quoteId: quote.quote_id,
           summary: `You'll receive approximately ${quote.estimated_coin_amount.toLocaleString(
             "en-US",
             { maximumFractionDigits: 2 }
-          )} ${symbol || "TOKEN"} after ${formatNaira(quote.fee_naira)} in fees.`
+          )} ${symbol || "TOKEN"} after ${formatNaira(
+            quote.fee_naira
+          )} in fees. Paid from your ${describeFiatFundingBalance(
+            quote.funding
+          )}.`,
+          wallet: quote.wallet || null
         });
       } else {
-        const activeExecutionWalletAddress =
-          await resolveFiatExecutionWalletAddress();
-        const quote = await getSellQuote({
+        const quote = await getSellQuotePublic({
           coinAddress: coin.address as Address,
           coinAmount: parsedAmount,
-          executionWalletAddress: activeExecutionWalletAddress,
+          executionWalletAddress: executionWalletAddress || undefined,
           idempotencyKey: createFiatIdempotencyKey("sell-quote"),
-          profileId: profile.id,
-          walletAddress: fiatWalletAddress,
-          walletClient: fiatWalletClient
+          profileId: profile.id
         });
 
         setFiatQuote({
           amountLabel: formatNaira(quote.estimated_naira_return),
           expiresAt: quote.expires_at,
+          funding: quote.funding || null,
           quoteId: quote.quote_id,
           settlement: {
             address: quote.settlement.address as Address,
@@ -373,7 +436,10 @@ const Trade = ({
             quote.estimated_naira_return
           )} after ${formatNaira(
             quote.fee_naira
-          )} in fees after you confirm the secure wallet transfer.`
+          )} in fees after you confirm the secure wallet transfer. Returns settle to your ${describeFiatPayoutBalance(
+            quote.funding
+          )}.`,
+          wallet: quote.wallet || null
         });
       }
     } catch (error) {
@@ -402,6 +468,11 @@ const Trade = ({
   };
 
   const handleFiatSubmit = async () => {
+    if (!isFiatTradeEnabled) {
+      toast.error("Naira trades are disabled while using test balances.");
+      return;
+    }
+
     if (!profile?.id || !fiatWalletClient?.account || !fiatWalletAddress) {
       toast.error(
         "Preparing your Every1 wallet. Please try again in a moment."
@@ -501,23 +572,51 @@ const Trade = ({
         throw new Error(response.message || "Unable to complete this request.");
       }
 
-      if (response.status === "failed") {
+      let finalResponse = response;
+      const transactionId =
+        mode === "buy"
+          ? "support" in response
+            ? response.support?.id
+            : undefined
+          : "sell" in response
+            ? response.sell?.id
+            : undefined;
+
+      if (profile.id && transactionId && shouldPollFiatExecution(response)) {
+        finalResponse = await pollFiatExecutionUntilSettled({
+          getStatus: () =>
+            mode === "buy"
+              ? getSupportExecutionStatusPublic(profile.id, transactionId)
+              : getSellExecutionStatusPublic(profile.id, transactionId),
+          initialResponse: response
+        });
+      }
+
+      if (isFiatExecutionFailed(finalResponse)) {
         throw new Error(
-          response.message || "This buy trade could not be completed."
+          finalResponse.message || "This trade could not be completed."
         );
       }
 
+      const statusValue = getFiatExecutionStatus(finalResponse);
+      const isCompleted = isFiatExecutionCompleted(finalResponse);
+      const isStillProcessing = statusValue === "processing";
+
       setTradeStatusModal({
-        description: response.message,
+        description: isStillProcessing
+          ? mode === "buy"
+            ? "Your Naira buy is still settling. Check your wallet activity in a moment."
+            : "Your Naira sell is still settling. Check your wallet activity in a moment."
+          : finalResponse.message,
         title:
           mode === "buy"
-            ? response.status === "completed"
+            ? isCompleted
               ? "Buy completed!"
               : "Buy finalizing"
-            : response.status === "completed"
+            : isCompleted
               ? "Sell completed!"
               : "Sell finalizing",
-        tone: response.status === "completed" ? "success" : "pending"
+        tone: isCompleted ? "success" : "pending"
       });
 
       await Promise.all([
@@ -731,14 +830,14 @@ const Trade = ({
               buy: { address: coin.address as Address, type: "erc20" },
               sell: { type: "eth" },
               sender,
-              slippage: 0.1
+              slippage: DEFAULT_SLIPPAGE
             }
           : {
               amountIn: parseUnits(amount, tokenDecimals),
               buy: { type: "eth" },
               sell: { address: coin.address as Address, type: "erc20" },
               sender,
-              slippage: 0.1
+              slippage: DEFAULT_SLIPPAGE
             };
 
       try {
@@ -772,10 +871,15 @@ const Trade = ({
   const formattedTokenBalance = Number(
     formatUnits(tokenBalance, tokenDecimals)
   );
+  const fiatWallet =
+    fiatQuote?.wallet || publicFiatWalletQuery.data?.wallet || null;
+  const nairaBalanceLabel = fiatWallet
+    ? formatNaira(fiatWallet.availableBalance ?? 0)
+    : `${NAIRA_SYMBOL}--`;
 
   const balanceLabel = isFiatRail
     ? mode === "buy"
-      ? "Uses your Every1 Naira wallet"
+      ? `Balance ${nairaBalanceLabel}`
       : `Balance ${formattedTokenBalance.toFixed(3)} ${symbol || "TOKEN"}`
     : mode === "buy"
       ? `Balance ${formattedEthBalance.toFixed(4)} ETH`
@@ -891,6 +995,28 @@ const Trade = ({
     symbol,
     tokenDecimals
   ]);
+  const estimatedOutValue = useMemo(() => {
+    if (!estimatedOut) {
+      return 0;
+    }
+
+    try {
+      return mode === "buy"
+        ? Number(formatUnits(BigInt(estimatedOut), tokenDecimals))
+        : Number(formatEther(BigInt(estimatedOut)));
+    } catch {
+      return 0;
+    }
+  }, [estimatedOut, mode, tokenDecimals]);
+  const slippageLabel = formatSlippageLabel(DEFAULT_SLIPPAGE);
+  const minReceiveValue =
+    estimatedOutValue > 0 ? estimatedOutValue * (1 - DEFAULT_SLIPPAGE) : 0;
+  const minReceiveLabel =
+    minReceiveValue > 0
+      ? mode === "buy"
+        ? `${formatTradeNumber(minReceiveValue, 2)} ${symbol || "TOKEN"}`
+        : `${formatTradeNumber(minReceiveValue, 6)} ETH`
+      : "-";
 
   const handleMobileKeypadInput = (key: "." | "backspace" | `${number}`) => {
     if (key === "backspace") {
@@ -936,19 +1062,28 @@ const Trade = ({
     : mode === "buy"
       ? "Coin trade"
       : "Token swap";
+  const fiatTradeBlockedReason =
+    !isFiatTradeEnabled && isFiatRail
+      ? "Test Naira balances can't be used to buy live coins yet."
+      : "";
+  const fiatBuySettlementBlockedMessage =
+    isFiatRail &&
+    mode === "buy" &&
+    fiatQuote?.funding?.buySettlementReady === false
+      ? fiatQuote.funding.buySettlementMessage ||
+        "User-funded cNGN settlement is not ready yet."
+      : "";
   const summaryText = isFiatRail
-    ? fiatQuoteError ||
+    ? fiatTradeBlockedReason ||
+      fiatBuySettlementBlockedMessage ||
+      fiatQuoteError ||
       fiatQuote?.summary ||
       (mode === "buy"
-        ? "Enter a ₦ amount, get a secure quote, then confirm your buy trade."
+        ? "Enter a ₦ amount, get a live quote, then confirm your buy trade."
         : `Enter how much ${symbol || "token"} you want to sell into Naira.`)
-    : `Estimated amount: ${
-        estimatedOut
-          ? mode === "buy"
-            ? `${Number(formatUnits(BigInt(estimatedOut), tokenDecimals)).toFixed(0)}`
-            : `${Number(formatEther(BigInt(estimatedOut))).toFixed(6)} ETH`
-          : "-"
-      }`;
+    : estimatedOutValue > 0
+      ? `Estimated: ${tradeOutputLabel}. Min received (${slippageLabel}): ${minReceiveLabel}.`
+      : "Enter an amount to get a live quote.";
   const quoteExpiryText = fiatQuote
     ? `Valid until ${new Date(fiatQuote.expiresAt).toLocaleTimeString([], {
         hour: "numeric",
@@ -956,11 +1091,13 @@ const Trade = ({
       })}`
     : null;
   const mobileSummaryText =
+    fiatTradeBlockedReason ||
+    fiatBuySettlementBlockedMessage ||
     fiatQuoteError ||
     fiatQuote?.summary ||
-    (!fiatWalletClient?.account || !executionWalletStatus.isReady
+    ((fiatQuote && !fiatWalletClient?.account) || !executionWalletStatus.isReady
       ? isFiatRail
-        ? "We'll verify your Every1 wallet when you continue."
+        ? "We'll verify your Every1 wallet when you confirm."
         : "We'll prepare your Every1 wallet when you continue."
       : "");
   const submitLabel = loading
@@ -972,22 +1109,27 @@ const Trade = ({
         ? "Selling to Naira"
         : "Selling"
     : isFiatRail
-      ? fiatQuote
-        ? mode === "buy"
-          ? "Confirm buy"
-          : "Confirm sell"
-        : fiatQuoteLoading
-          ? "Getting quote..."
-          : "Get quote"
+      ? isFiatTradeEnabled
+        ? fiatQuote
+          ? fiatBuySettlementBlockedMessage
+            ? "Buy route pending"
+            : mode === "buy"
+              ? "Confirm buy"
+              : "Confirm sell"
+          : fiatQuoteLoading
+            ? "Getting quote..."
+            : "Get quote"
+        : "Naira trades disabled"
       : mode === "buy"
         ? "Buy"
         : "Sell";
   const canSubmit = isFiatRail
     ? Boolean(
         profile?.id &&
-          fiatWalletAddress &&
           hasValidAmount &&
           hasEnoughTokenToSell &&
+          isFiatTradeEnabled &&
+          (mode !== "buy" || !fiatQuote || !fiatBuySettlementBlockedMessage) &&
           !loading &&
           !fiatQuoteLoading
       )
@@ -997,7 +1139,7 @@ const Trade = ({
     const displayAmount = amount || "0";
     const mobileBalanceLabel = isFiatRail
       ? mode === "buy"
-        ? "Every1 Naira wallet"
+        ? `${nairaBalanceLabel} available`
         : `${formattedTokenBalance.toFixed(formattedTokenBalance >= 1 ? 2 : 4)} ${
             symbol || "TOKEN"
           } available`
@@ -1124,7 +1266,7 @@ const Trade = ({
                 {mode === "buy"
                   ? isFiatRail
                     ? `${NAIRA_SYMBOL}${displayAmount}`
-                    : `$${displayAmount}`
+                    : `${displayAmount} ETH`
                   : displayAmount}
               </p>
             </div>

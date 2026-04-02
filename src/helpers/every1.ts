@@ -1098,11 +1098,84 @@ const buildPaymentNotificationCopy = (row: NotificationRow) => {
   const data = row.data || {};
   const amount = Number((data as { amount?: number | string }).amount);
   const currency = (data as { currency?: string }).currency;
-  const status = String((data as { status?: string }).status || "").toLowerCase();
+  const status = String(
+    (data as { status?: string }).status || ""
+  ).toLowerCase();
+  const transactionType = String(
+    (data as { transactionType?: string }).transactionType || ""
+  ).toLowerCase();
+  const coinSymbol = String(
+    (data as { coinSymbol?: string }).coinSymbol || ""
+  ).trim();
   const formattedAmount = formatPaymentAmount(amount, currency);
 
   if (!formattedAmount) {
     return null;
+  }
+
+  const isSuccess = status === "succeeded" || status === "completed";
+  const isFailure =
+    status === "failed" || status === "cancelled" || status === "refunded";
+  const coinLabel = coinSymbol
+    ? coinSymbol.startsWith("â‚¦")
+      ? coinSymbol
+      : `â‚¦${coinSymbol}`
+    : "this coin";
+
+  if (transactionType === "support" || transactionType === "sell") {
+    const isSupport = transactionType === "support";
+    const actionLabel = isSupport ? "buy" : "sell";
+    const pastTense = isSupport ? "bought" : "sold";
+    const titleBase = isSupport ? "Buy" : "Sell";
+
+    if (isSuccess) {
+      return {
+        body: `You ${pastTense} ${coinLabel} for ${formattedAmount}.`,
+        title: `${titleBase} completed`
+      };
+    }
+
+    if (isFailure) {
+      return {
+        body: `Your ${actionLabel} of ${coinLabel} for ${formattedAmount} ${status}.`,
+        title: `${titleBase} failed`
+      };
+    }
+
+    if (status) {
+      return {
+        body: `Your ${actionLabel} of ${coinLabel} for ${formattedAmount} is ${status}.`,
+        title: `${titleBase} processing`
+      };
+    }
+
+    return {
+      body: `You ${pastTense} ${coinLabel} for ${formattedAmount}.`,
+      title: `${titleBase} completed`
+    };
+  }
+
+  if (transactionType === "withdrawal") {
+    if (isSuccess) {
+      return {
+        body: `Your withdrawal of ${formattedAmount} is complete.`,
+        title: "Withdrawal completed"
+      };
+    }
+
+    if (isFailure) {
+      return {
+        body: `Your withdrawal of ${formattedAmount} ${status}.`,
+        title: "Withdrawal failed"
+      };
+    }
+
+    if (status) {
+      return {
+        body: `Your withdrawal of ${formattedAmount} is ${status}.`,
+        title: "Withdrawal processing"
+      };
+    }
   }
 
   if (status === "succeeded") {

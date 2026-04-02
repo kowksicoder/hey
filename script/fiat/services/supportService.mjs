@@ -52,12 +52,28 @@ const computeEstimatedCoinAmount = ({ feeKobo, grossKobo, priceNaira }) => {
   return Number((tradableNaira / priceNaira).toFixed(10));
 };
 
+const mapWalletSummary = (wallet) => ({
+  availableBalance: asMoney(wallet.available_balance_kobo),
+  availableBalanceKobo: wallet.available_balance_kobo,
+  currency: wallet.currency,
+  id: wallet.wallet_id,
+  lastTransactionAt: wallet.last_transaction_at,
+  lockedBalance: asMoney(wallet.locked_balance_kobo),
+  lockedBalanceKobo: wallet.locked_balance_kobo,
+  pendingBalance: asMoney(wallet.pending_balance_kobo),
+  pendingBalanceKobo: wallet.pending_balance_kobo,
+  profileId: wallet.profile_id,
+  totalBalance: asMoney(wallet.total_balance_kobo),
+  totalBalanceKobo: wallet.total_balance_kobo
+});
+
 export const createSupportService = ({
   creatorService,
   executionEnabled = false,
   settlementService = null,
   supportFeeBps = 250,
-  supabase
+  supabase,
+  walletService = null
 }) => {
   const resolveExecutionWalletAddress = (profile, body = null) => {
     const requestedExecutionWalletAddress = String(
@@ -76,7 +92,40 @@ export const createSupportService = ({
     return profile?.execution_wallet_address || profile?.wallet_address || null;
   };
 
+  const getFundingState = async ({ profileId, syncDeposits = true }) => {
+    if (walletService?.getTradeFundingState) {
+      return await walletService.getTradeFundingState({
+        profileId,
+        syncDeposits
+      });
+    }
+
+    const wallet = await getWalletOverviewRow({
+      profileId,
+      supabase
+    });
+
+    return {
+      funding: null,
+      wallet
+    };
+  };
+
+  const assertBuySettlementReady = (fundingState) => {
+    if (!fundingState?.funding) {
+      return;
+    }
+
+    assert(
+      fundingState.funding.buySettlementReady !== false,
+      fundingState.funding.buySettlementMessage ||
+        "Naira buy settlement is not available right now.",
+      503
+    );
+  };
+
   const buildExecutionPayload = ({ transaction, wallet }) => ({
+    funding: null,
     message:
       transaction.status === "completed"
         ? "You bought this creator coin successfully and the coins were sent to your wallet."
@@ -86,6 +135,8 @@ export const createSupportService = ({
             ? "This buy trade could not be completed. Your Naira balance has been returned."
             : "Your buy trade was recorded successfully.",
     new_naira_balance: asMoney(wallet.available_balance_kobo),
+    refreshAfterMs: transaction.status === "processing" ? 5000 : undefined,
+    shouldPoll: transaction.status === "processing",
     status: transaction.status,
     success: true,
     support: {
@@ -105,22 +156,57 @@ export const createSupportService = ({
       totalNaira: asMoney(transaction.total_kobo)
     },
     wallet: {
-      availableBalance: asMoney(wallet.available_balance_kobo),
-      availableBalanceKobo: wallet.available_balance_kobo,
-      currency: wallet.currency,
-      id: wallet.wallet_id,
-      lastTransactionAt: wallet.last_transaction_at,
-      lockedBalance: asMoney(wallet.locked_balance_kobo),
-      lockedBalanceKobo: wallet.locked_balance_kobo,
-      pendingBalance: asMoney(wallet.pending_balance_kobo),
-      pendingBalanceKobo: wallet.pending_balance_kobo,
-      profileId: wallet.profile_id,
-      totalBalance: asMoney(wallet.total_balance_kobo),
-      totalBalanceKobo: wallet.total_balance_kobo
+      ...mapWalletSummary(wallet)
     }
   });
 
+  const getTransactionStatus = async ({ profile, transactionId }) => {
+    assert(transactionId, "transactionId is required.");
+
+    const { data: transaction, error: transactionError } = await supabase
+      .from("support_transactions")
+      .select("*")
+      .eq("id", transactionId)
+      .eq("profile_id", profile.id)
+      .maybeSingle();
+
+    if (transactionError) {
+      throw transactionError;
+    }
+
+    assert(transaction, "Support transaction was not found.", 404);
+
+    const settlementResult =
+      transaction.status === "processing" &&
+      executionEnabled &&
+      settlementService?.isEnabled?.() &&
+      settlementService?.shouldReconcileTransaction?.(transaction)
+        ? await settlementService.reconcileSupportTransaction({
+            profile,
+            transaction
+          })
+        : null;
+    const fundingState = await getFundingState({
+      profileId: profile.id,
+      syncDeposits: false
+    });
+    const wallet = settlementResult?.wallet || fundingState.wallet;
+    const payload = buildExecutionPayload({
+      transaction: settlementResult?.transaction || transaction,
+      wallet
+    });
+
+    payload.funding = fundingState.funding;
+    return {
+      payload,
+      statusCode: 200
+    };
+  };
+
   const quote = async ({ body, profileId }) => {
+    const fundingState = await getFundingState({
+      profileId
+    });
     const amountKobo = toKobo(body.nairaAmount);
     assert(amountKobo, "A valid Naira trade amount is required.");
 
@@ -193,10 +279,12 @@ export const createSupportService = ({
       estimated_coin_amount: Number(estimatedCoinAmount.toFixed(6)),
       expires_at: expiresAt,
       fee_naira: asMoney(feeKobo),
+      funding: fundingState.funding,
       naira_amount: asMoney(amountKobo),
       quote_id: data.id,
       support_amount_naira: asMoney(supportAmountKobo),
-      total_naira: asMoney(amountKobo)
+      total_naira: asMoney(amountKobo),
+      wallet: mapWalletSummary(fundingState.wallet)
     };
 
     await saveIdempotencyRecord({
@@ -250,23 +338,23 @@ export const createSupportService = ({
         existingTransaction.status === "processing" &&
         executionEnabled &&
         settlementService?.isEnabled?.() &&
-        (existingTransaction.zora_trade_hash ||
-          existingTransaction.metadata?.txHash)
+        settlementService?.shouldReconcileTransaction?.(existingTransaction)
           ? await settlementService.reconcileSupportTransaction({
               profile,
               transaction: existingTransaction
             })
           : null;
-      const wallet =
-        settlementResult?.wallet ||
-        (await getWalletOverviewRow({
-          profileId,
-          supabase
-        }));
+      const fundingState = await getFundingState({
+        profileId,
+        syncDeposits: false
+      });
+      const wallet = settlementResult?.wallet || fundingState.wallet;
       const payload = buildExecutionPayload({
         transaction: settlementResult?.transaction || existingTransaction,
         wallet
       });
+
+      payload.funding = fundingState.funding;
 
       await saveIdempotencyRecord({
         key: idempotencyKey,
@@ -312,10 +400,11 @@ export const createSupportService = ({
       409
     );
 
-    const wallet = await getWalletOverviewRow({
-      profileId,
-      supabase
+    const fundingState = await getFundingState({
+      profileId
     });
+    assertBuySettlementReady(fundingState);
+    const wallet = fundingState.wallet;
     assert(
       wallet.available_balance_kobo >= quote.total_kobo,
       "Insufficient available balance.",
@@ -456,16 +545,13 @@ export const createSupportService = ({
           })
         : null;
     const settledTransaction = settlementResult?.transaction || transaction;
-    const refreshedWallet =
-      settlementResult?.wallet ||
-      (await getWalletOverviewRow({
-        profileId,
-        supabase
-      }));
+    const refreshedWallet = settlementResult?.wallet || fundingState.wallet;
     const payload = buildExecutionPayload({
       transaction: settledTransaction,
       wallet: refreshedWallet
     });
+
+    payload.funding = fundingState.funding;
 
     await saveIdempotencyRecord({
       key: idempotencyKey,
@@ -484,6 +570,7 @@ export const createSupportService = ({
 
   return {
     execute,
+    getTransactionStatus,
     quote
   };
 };

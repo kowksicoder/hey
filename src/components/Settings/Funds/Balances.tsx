@@ -4,19 +4,21 @@ import {
   ClockIcon,
   SparklesIcon
 } from "@heroicons/react/24/outline";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
+import { toast } from "sonner";
 import type { Address } from "viem";
 import TopUpButton from "@/components/Shared/Account/TopUp/Button";
 import Loader from "@/components/Shared/Loader";
-import { Button, EmptyState, ErrorMessage, Image, Modal } from "@/components/Shared/UI";
+import { EmptyState, ErrorMessage, Image, Modal } from "@/components/Shared/UI";
 import {
   DEFAULT_COLLECT_TOKEN,
   NATIVE_TOKEN_SYMBOL,
   WRAPPED_NATIVE_TOKEN_SYMBOL
 } from "@/data/constants";
 import { tokens } from "@/data/tokens";
+import { logActionError } from "@/helpers/actionErrorLogger";
 import cn from "@/helpers/cn";
 import formatRelativeOrAbsolute from "@/helpers/datetime/formatRelativeOrAbsolute";
 import {
@@ -25,7 +27,10 @@ import {
   listProfileRewardTokens,
   listProfileWalletActivity
 } from "@/helpers/every1";
-import { getFiatWalletTransactionsPublic } from "@/helpers/fiat";
+import {
+  getFiatWalletTransactionsPublic,
+  reconcileFiatTradesPublic
+} from "@/helpers/fiat";
 import formatAddress from "@/helpers/formatAddress";
 import { formatNaira } from "@/helpers/formatNaira";
 import getTokenImage from "@/helpers/getTokenImage";
@@ -50,6 +55,20 @@ interface FundsAsset {
   name: string;
   symbol: string;
   usdValue: number | null;
+}
+
+interface WalletHistoryItem {
+  amountLabel: string;
+  amountTone: "credit" | "debit" | "neutral";
+  caption: string;
+  createdAt: string;
+  href?: null | string;
+  id: string;
+  statusLabel: string;
+  symbol: string;
+  timeLabel: string;
+  title: string;
+  txHash?: null | string;
 }
 
 const CASH_BALANCE_PRICES: Record<string, number> = {
@@ -135,6 +154,18 @@ const buildAssetFromBalance = (balance: any): FundsAsset | null => {
   }
 
   return null;
+};
+
+const isPendingTradeTransaction = (transaction: {
+  status: string;
+  type: string;
+}) => {
+  const normalizedStatus = String(transaction.status || "").toLowerCase();
+  return (
+    ["support", "sell"].includes(
+      String(transaction.type || "").toLowerCase()
+    ) && ["initiated", "pending", "processing"].includes(normalizedStatus)
+  );
 };
 
 interface AssetActionsModalProps {
@@ -358,12 +389,10 @@ const ActivityRow = ({
         />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate font-semibold text-[13px] text-gray-950 dark:text-white md:text-sm">
+            <p className="truncate font-semibold text-[13px] text-gray-950 md:text-sm dark:text-white">
               {title}
             </p>
-            <span className={statusBadgeClass}>
-              {statusLabel}
-            </span>
+            <span className={statusBadgeClass}>{statusLabel}</span>
           </div>
           <p className="mt-0.5 truncate text-gray-500 text-xs dark:text-gray-400">
             {caption}
@@ -394,19 +423,20 @@ const ActivityRow = ({
     );
   }
 
-  return <div className="rounded-xl px-0.5 md:rounded-2xl md:px-1">{content}</div>;
+  return (
+    <div className="rounded-xl px-0.5 md:rounded-2xl md:px-1">{content}</div>
+  );
 };
 
 const Balances = () => {
   const { currentAccount } = useAccountStore();
   const { profile } = useEvery1Store();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<FundsTab>("tokens");
-  const {
-    authenticateIndexer,
-    authenticating,
-    canUseAuthenticatedIndexer,
-    needsAuthenticatedIndexer
-  } = useEnsureIndexerAuth({ enabled: Boolean(currentAccount?.address) });
+  const { authenticating, canUseAuthenticatedIndexer } = useEnsureIndexerAuth({
+    autoAuthenticate: false,
+    enabled: Boolean(currentAccount?.address)
+  });
   const [selectedAsset, setSelectedAsset] = useState<FundsAsset | null>(null);
   const rewardTokensQuery = useQuery({
     enabled: Boolean(profile?.id),
@@ -423,6 +453,37 @@ const Balances = () => {
     queryFn: async () =>
       await getFiatWalletTransactionsPublic(profile?.id || "", 12),
     queryKey: ["fiat-wallet-transactions-public", profile?.id || null]
+  });
+  const tradeRefreshMutation = useMutation({
+    mutationFn: async () => {
+      if (!profile?.id) {
+        throw new Error("Sign in to continue.");
+      }
+
+      const result = await reconcileFiatTradesPublic(profile.id);
+      await Promise.all([
+        fiatTransactionsQuery.refetch(),
+        walletActivityQuery.refetch(),
+        queryClient.invalidateQueries({
+          queryKey: ["fiat-wallet-public", profile.id]
+        })
+      ]);
+
+      return result;
+    },
+    onError: (error) => {
+      logActionError("wallet.trade_refresh", error, {
+        profileId: profile?.id || null
+      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to refresh pending trades right now."
+      );
+    },
+    onSuccess: (result) => {
+      toast.message(result.message);
+    }
   });
   const tokenContracts = useMemo(
     () =>
@@ -485,24 +546,33 @@ const Balances = () => {
   );
   const walletActivity = walletActivityQuery.data || [];
   const fiatTransactions = fiatTransactionsQuery.data?.transactions || [];
-  const historyItems = useMemo(() => {
-    const fiatItems = fiatTransactions.map((transaction) => ({
-      amountLabel: `${transaction.direction === "credit" ? "+" : "-"}${formatNaira(
-        transaction.netAmountNaira
-      )}`,
-      amountTone: transaction.direction === "credit" ? "credit" : "debit",
-      caption: transaction.subtitle || "Naira wallet",
-      createdAt: transaction.createdAt,
-      href: null,
-      id: `fiat-${transaction.id}`,
-      statusLabel: transaction.status || "pending",
-      symbol: "NGN",
-      timeLabel: formatRelativeOrAbsolute(transaction.createdAt),
-      title: transaction.title || "Naira wallet",
-      txHash: null
-    }));
+  const historyItems = useMemo<WalletHistoryItem[]>(() => {
+    const fiatItems: WalletHistoryItem[] = fiatTransactions.map(
+      (transaction) => {
+        const isSupport = transaction.type === "support";
+        const amountValue = isSupport
+          ? transaction.amountNaira
+          : transaction.netAmountNaira;
 
-    const rewardItems = walletActivity.map((activity) => ({
+        return {
+          amountLabel: `${transaction.direction === "credit" ? "+" : "-"}${formatNaira(
+            amountValue
+          )}`,
+          amountTone: transaction.direction === "credit" ? "credit" : "debit",
+          caption: transaction.subtitle || "Naira wallet",
+          createdAt: transaction.createdAt,
+          href: null,
+          id: `fiat-${transaction.id}`,
+          statusLabel: transaction.status || "pending",
+          symbol: "NGN",
+          timeLabel: formatRelativeOrAbsolute(transaction.createdAt),
+          title: transaction.title || "Naira wallet",
+          txHash: null
+        };
+      }
+    );
+
+    const rewardItems: WalletHistoryItem[] = walletActivity.map((activity) => ({
       amountLabel: formatTokenAmount(activity.amount, activity.tokenSymbol),
       amountTone: "credit",
       caption:
@@ -530,16 +600,20 @@ const Balances = () => {
     return [...fiatItems, ...rewardItems].sort((a, b) => {
       const aTime = new Date(a.createdAt).getTime();
       const bTime = new Date(b.createdAt).getTime();
-      return (Number.isFinite(bTime) ? bTime : 0) - (Number.isFinite(aTime) ? aTime : 0);
+      return (
+        (Number.isFinite(bTime) ? bTime : 0) -
+        (Number.isFinite(aTime) ? aTime : 0)
+      );
     });
   }, [fiatTransactions, walletActivity]);
   const historyLoading =
     walletActivityQuery.isLoading || fiatTransactionsQuery.isLoading;
   const historyError = walletActivityQuery.error || fiatTransactionsQuery.error;
   const shouldShowHistoryError = Boolean(historyError) && !historyItems.length;
-  const requestOnchainAccess = async () => {
-    await authenticateIndexer({ force: true });
-  };
+  const pendingTradeCount = useMemo(
+    () => fiatTransactions.filter(isPendingTradeTransaction).length,
+    [fiatTransactions]
+  );
 
   const renderOnchainWalletContent = () => {
     if (authenticating && !canUseAuthenticatedIndexer) {
@@ -641,8 +715,7 @@ const Balances = () => {
               }
               message={
                 <p className="text-gray-500 text-sm dark:text-gray-400">
-                  Earnings will show up here once your coin starts making
-                  money.
+                  Earnings will show up here once your coin starts making money.
                 </p>
               }
             />
@@ -651,6 +724,20 @@ const Balances = () => {
 
         {activeTab === "history" ? (
           <div className="mx-2 mt-4 rounded-[1.2rem] bg-gray-50 p-3.5 md:mx-0 md:mt-5 md:rounded-[1.5rem] md:p-4 dark:bg-[#17181d]">
+            {pendingTradeCount > 0 ? (
+              <div className="mb-3 flex items-center justify-end">
+                <button
+                  className="rounded-full bg-white px-3 py-1.5 font-semibold text-[11px] text-gray-700 shadow-sm transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8 dark:text-white/80 dark:shadow-none dark:hover:bg-white/12"
+                  disabled={tradeRefreshMutation.isPending}
+                  onClick={() => tradeRefreshMutation.mutate()}
+                  type="button"
+                >
+                  {tradeRefreshMutation.isPending
+                    ? "Refreshing..."
+                    : "Refresh pending"}
+                </button>
+              </div>
+            ) : null}
             {historyLoading ? (
               <Loader className="my-10" />
             ) : shouldShowHistoryError ? (

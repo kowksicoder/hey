@@ -34,7 +34,9 @@ let flutterwaveScriptPromise: Promise<void> | null = null;
 
 const loadFlutterwaveScript = () => {
   if (typeof window === "undefined") {
-    return Promise.reject(new Error("Flutterwave checkout can only run in a browser."));
+    return Promise.reject(
+      new Error("Flutterwave checkout can only run in a browser.")
+    );
   }
 
   if (window.FlutterwaveCheckout) {

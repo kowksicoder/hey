@@ -51,15 +51,30 @@ import {
 import {
   executeSell,
   executeSupport,
-  getSellQuote,
-  getSupportQuote
+  getFiatWalletPublic,
+  getFiatWalletTransactionsPublic,
+  getSellExecutionStatusPublic,
+  getSellQuotePublic,
+  getSupportExecutionStatusPublic,
+  getSupportQuotePublic
 } from "@/helpers/fiat";
 import {
   createFiatIdempotencyKey,
-  normalizeFiatUiError
+  getFiatExecutionStatus,
+  isFiatExecutionCompleted,
+  isFiatExecutionFailed,
+  normalizeFiatUiError,
+  pollFiatExecutionUntilSettled,
+  shouldPollFiatExecution
 } from "@/helpers/fiatUi";
 import {
+  type FiatWalletCacheEntry,
+  readFiatWalletCache,
+  writeFiatWalletCache
+} from "@/helpers/fiatWalletCache";
+import {
   formatCompactNaira,
+  formatCompactNairaFromUsd,
   formatNaira,
   NAIRA_SYMBOL
 } from "@/helpers/formatNaira";
@@ -68,7 +83,6 @@ import getCoinPriceHistory, {
 } from "@/helpers/getCoinPriceHistory";
 import getZoraApiKey from "@/helpers/getZoraApiKey";
 import {
-  formatCompactMetric,
   formatDelta,
   isPositiveDelta,
   parseMetricNumber
@@ -80,12 +94,14 @@ import {
 import { announceTelegramTrade } from "@/helpers/telegramAnnouncements";
 import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import useHandleWrongNetwork from "@/hooks/useHandleWrongNetwork";
-import useUsdToNgnRate, {
-  resolveUsdToNgnRate
-} from "@/hooks/useUsdToNgnRate";
+import useUsdToNgnRate, { resolveUsdToNgnRate } from "@/hooks/useUsdToNgnRate";
 import { useAccountStore } from "@/store/persisted/useAccountStore";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
-import type { SellExecuteResponse } from "@/types/fiat";
+import type {
+  FiatTradeFundingSummary,
+  FiatWalletSummary,
+  SellExecuteResponse
+} from "@/types/fiat";
 
 const zoraApiKey = getZoraApiKey();
 
@@ -94,6 +110,37 @@ if (zoraApiKey) {
 }
 
 const TOKEN_DECIMALS = 18;
+const DEFAULT_SLIPPAGE = 0.005;
+
+const formatSlippageLabel = (value: number) => {
+  const percent = value * 100;
+  const digits = percent >= 1 ? 1 : 2;
+  return `${percent.toFixed(digits).replace(/\.0+$/, "")}%`;
+};
+
+const describeFiatFundingBalance = (
+  funding?: null | FiatTradeFundingSummary
+) => {
+  if (!funding) {
+    return "Every1 Naira balance";
+  }
+
+  return funding.tradeFundingRail === "cngn"
+    ? "cNGN-backed Naira balance"
+    : "Every1 Naira balance";
+};
+
+const describeFiatPayoutBalance = (
+  funding?: null | FiatTradeFundingSummary
+) => {
+  if (!funding) {
+    return "Every1 Naira balance";
+  }
+
+  return funding.payoutRail === "cngn"
+    ? "cNGN-backed Naira balance"
+    : "Every1 Naira balance";
+};
 
 type ExploreCoinNode = NonNullable<
   NonNullable<
@@ -161,6 +208,7 @@ type FiatQuoteState = null | {
   amountLabel: string;
   displayValue: string;
   expiresAt: string;
+  funding?: null | FiatTradeFundingSummary;
   quoteId: string;
   settlement?: {
     address: Address;
@@ -168,6 +216,7 @@ type FiatQuoteState = null | {
     transferAmountRaw: string;
   };
   summary: string;
+  wallet?: null | FiatWalletSummary;
 };
 
 const EMPTY_COIN: Coin = {
@@ -219,8 +268,8 @@ const isAddress = (value?: null | string): value is Address =>
 
 const buildSwapCoin = (
   coin: ZoraCoinSummary,
-  balanceToken = 0,
-  usdToNgnRate: number
+  usdToNgnRate: number,
+  balanceToken = 0
 ): Coin => {
   const priceUsd = parseMetricNumber(coin.tokenPrice?.priceInUsdc);
   const marketCap = parseMetricNumber(coin.marketCap);
@@ -301,14 +350,21 @@ const generateChartData = (
             timestamp: Date.now() + 1
           }
         ];
+  const safeHistoryPoints = Array.isArray(safeHistory) ? safeHistory : [];
   const downsampled =
-    safeHistory.length > maxRenderPoints
+    safeHistoryPoints.length > maxRenderPoints
       ? (() => {
-          const bucketSize = Math.ceil(safeHistory.length / maxRenderPoints);
+          const bucketSize = Math.ceil(
+            safeHistoryPoints.length / maxRenderPoints
+          );
           const bucketed: Array<{ price: number; timestamp: number }> = [];
 
-          for (let index = 0; index < safeHistory.length; index += bucketSize) {
-            const slice = safeHistory.slice(index, index + bucketSize);
+          for (
+            let index = 0;
+            index < safeHistoryPoints.length;
+            index += bucketSize
+          ) {
+            const slice = safeHistoryPoints.slice(index, index + bucketSize);
 
             if (!slice.length) {
               continue;
@@ -337,7 +393,7 @@ const generateChartData = (
 
           return bucketed;
         })()
-      : safeHistory;
+      : safeHistoryPoints;
   const minTimestamp = downsampled[0]?.timestamp ?? Date.now();
   const maxTimestamp =
     downsampled[downsampled.length - 1]?.timestamp ?? minTimestamp + 1;
@@ -446,11 +502,16 @@ const Swap = () => {
   } = useEvery1ExecutionWallet();
   const handleWrongNetwork = useHandleWrongNetwork();
   const [amount, setAmount] = useState("0.01");
-  const [direction, setDirection] = useState<"ethToToken" | "tokenToEth">(
-    "ethToToken"
-  );
+  const [direction, setDirection] = useState<
+    "ethToToken" | "tokenToEth" | "tokenToToken"
+  >("ethToToken");
+  const [tradeRail, setTradeRail] = useState<"fiat" | "onchain">("fiat");
   const [selectedCoin, setSelectedCoin] = useState<null | Coin>(null);
+  const [sourceCoin, setSourceCoin] = useState<null | Coin>(null);
   const [coinQuery, setCoinQuery] = useState("");
+  const [coinPickerTarget, setCoinPickerTarget] = useState<"source" | "target">(
+    "target"
+  );
   const [marketSectionTab, setMarketSectionTab] = useState<
     "tokens" | "history" | "holdings"
   >("tokens");
@@ -468,6 +529,8 @@ const Swap = () => {
     tone: "pending" | "success";
   }>(null);
   const [balanceRefreshIndex, setBalanceRefreshIndex] = useState(0);
+  const [cachedWalletEntry, setCachedWalletEntry] =
+    useState<FiatWalletCacheEntry | null>(null);
   const [hover, setHover] = useState<null | {
     value: number;
     x: number;
@@ -496,6 +559,9 @@ const Swap = () => {
     smartWalletError,
     smartWalletLoading
   });
+  useEffect(() => {
+    setCachedWalletEntry(readFiatWalletCache(profile?.id || null));
+  }, [profile?.id]);
   const ensureExecutionWalletReady = async () => {
     const existingClient = toViemWalletClient(executionWalletClient);
     const existingAddress =
@@ -592,12 +658,38 @@ const Swap = () => {
       }),
     queryKey: ["swap-holdings", walletAddress]
   });
+  const publicFiatWalletQuery = useQuery({
+    enabled: Boolean(profile?.id),
+    queryFn: async () =>
+      profile?.id
+        ? await getFiatWalletPublic(profile.id)
+        : await Promise.reject(new Error("Profile not ready")),
+    queryKey: ["fiat-wallet-public", profile?.id || null],
+    staleTime: 30_000
+  });
 
   const walletActivityQuery = useQuery({
     enabled: Boolean(profile?.id),
     queryFn: async () => await listProfileWalletActivity(profile?.id || ""),
     queryKey: [EVERY1_WALLET_ACTIVITY_QUERY_KEY, profile?.id || null]
   });
+  const fiatTransactionsQuery = useQuery({
+    enabled: Boolean(profile?.id),
+    queryFn: async () =>
+      await getFiatWalletTransactionsPublic(profile?.id || "", 10),
+    queryKey: ["swap-fiat-transactions", profile?.id || null]
+  });
+  useEffect(() => {
+    const nextWallet = publicFiatWalletQuery.data?.wallet;
+
+    if (nextWallet && profile?.id) {
+      writeFiatWalletCache(profile.id, nextWallet);
+      setCachedWalletEntry({
+        cachedAt: new Date().toISOString(),
+        wallet: nextWallet
+      });
+    }
+  }, [profile?.id, publicFiatWalletQuery.data?.wallet]);
   const holdingCoins = useMemo(() => {
     const edges = holdingsQuery.data?.data?.profile?.coinBalances?.edges ?? [];
 
@@ -610,8 +702,8 @@ const Swap = () => {
       .map((holding) =>
         buildSwapCoin(
           holding.coin as ZoraCoinSummary,
-          parseMetricNumber(holding.balance),
-          usdToNgnRate
+          usdToNgnRate,
+          parseMetricNumber(holding.balance)
         )
       );
   }, [holdingsQuery.data, usdToNgnRate]);
@@ -637,8 +729,8 @@ const Swap = () => {
       const holding = holdingByAddress.get(coin.address.toLowerCase());
       return buildSwapCoin(
         coin as ZoraCoinSummary,
-        holding?.balanceToken ?? 0,
-        usdToNgnRate
+        usdToNgnRate,
+        holding?.balanceToken ?? 0
       );
     });
   }, [
@@ -699,10 +791,93 @@ const Swap = () => {
   useEffect(() => {
     setFiatQuote(null);
     setFiatQuoteError(null);
-  }, [amount, direction, selectedCoin?.address]);
+  }, [amount, direction, selectedCoin?.address, tradeRail]);
 
   const activeCoin = selectedCoin ?? coins[0] ?? EMPTY_COIN;
+  const isTokenToToken = direction === "tokenToToken";
   const fromIsEth = direction === "ethToToken";
+  const toIsEth = direction === "tokenToEth";
+  const sourceHoldings = useMemo(
+    () => holdingCoins.filter((coin) => coin.balanceToken > 0),
+    [holdingCoins]
+  );
+  const fallbackSourceCoin = useMemo(() => {
+    if (!sourceHoldings.length) {
+      return activeCoin;
+    }
+
+    return (
+      sourceHoldings.find(
+        (coin) =>
+          coin.address.toLowerCase() !== activeCoin.address.toLowerCase()
+      ) || sourceHoldings[0]
+    );
+  }, [activeCoin.address, sourceHoldings]);
+  const sourceCoinResolved = sourceCoin ?? fallbackSourceCoin;
+  const onchainSourceCoin = isTokenToToken ? sourceCoinResolved : activeCoin;
+  const payCoin = fromIsEth ? null : onchainSourceCoin;
+  const receiveCoin = toIsEth ? null : activeCoin;
+  const hasDistinctTokenPair =
+    !isTokenToToken ||
+    !sourceCoinResolved.address ||
+    !activeCoin.address ||
+    sourceCoinResolved.address.toLowerCase() !==
+      activeCoin.address.toLowerCase();
+
+  useEffect(() => {
+    if (!sourceCoin) {
+      return;
+    }
+
+    const refreshedCoin = sourceHoldings.find(
+      (coin) => coin.address.toLowerCase() === sourceCoin.address.toLowerCase()
+    );
+
+    if (refreshedCoin) {
+      setSourceCoin(refreshedCoin);
+      return;
+    }
+
+    if (sourceHoldings.length) {
+      setSourceCoin(fallbackSourceCoin);
+      return;
+    }
+
+    setSourceCoin(null);
+  }, [fallbackSourceCoin, sourceCoin, sourceHoldings]);
+
+  useEffect(() => {
+    if (!isTokenToToken) {
+      return;
+    }
+
+    if (!sourceHoldings.length) {
+      setSourceCoin(null);
+      return;
+    }
+
+    if (
+      sourceCoinResolved.address &&
+      activeCoin.address &&
+      sourceCoinResolved.address.toLowerCase() ===
+        activeCoin.address.toLowerCase()
+    ) {
+      setSourceCoin(fallbackSourceCoin);
+      return;
+    }
+
+    if (!sourceCoin) {
+      setSourceCoin(sourceCoinResolved);
+    }
+  }, [
+    activeCoin.address,
+    fallbackSourceCoin,
+    isTokenToToken,
+    sourceCoin,
+    sourceCoinResolved,
+    sourceHoldings.length
+  ]);
+
   const trendUp = activeCoin.percentChange >= 0;
   const trendColor = trendUp ? "#16a34a" : "#db2777";
   const gradientId = `swap-chart-${activeCoin.symbol || "coin"}`;
@@ -716,9 +891,10 @@ const Swap = () => {
 
   useEffect(() => {
     let cancelled = false;
+    const balanceCoinAddress = payCoin?.address;
 
     const readBalances = async () => {
-      if (!connectedTradeAddress || !activeCoin.address) {
+      if (!connectedTradeAddress) {
         if (!cancelled) {
           setEthBalance(0n);
           setTokenBalance(0n);
@@ -729,12 +905,14 @@ const Swap = () => {
       try {
         const [nextEthBalance, nextTokenBalance] = await Promise.all([
           publicClient.getBalance({ address: connectedTradeAddress }),
-          publicClient.readContract({
-            abi: erc20Abi,
-            address: activeCoin.address as Address,
-            args: [connectedTradeAddress],
-            functionName: "balanceOf"
-          })
+          balanceCoinAddress
+            ? publicClient.readContract({
+                abi: erc20Abi,
+                address: balanceCoinAddress as Address,
+                args: [connectedTradeAddress],
+                functionName: "balanceOf"
+              })
+            : Promise.resolve(0n)
         ]);
 
         if (!cancelled) {
@@ -755,15 +933,17 @@ const Swap = () => {
       cancelled = true;
     };
   }, [
-    activeCoin.address,
     balanceRefreshIndex,
     connectedTradeAddress,
+    payCoin?.address,
     publicClient
   ]);
 
   const parsedAmount = Number.parseFloat(amount || "0");
   const hasValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
-  const isFiatRail = true;
+  const isFiatRail = tradeRail === "fiat";
+  const isFiatTradeEnabled =
+    import.meta.env.VITE_ENABLE_FIAT_TRADES !== "false";
 
   const makeTradeParams = (sender: Address): null | TradeParameters => {
     if (!activeCoin.address || !hasValidAmount) {
@@ -777,7 +957,24 @@ const Swap = () => {
           buy: { address: activeCoin.address as Address, type: "erc20" },
           sell: { type: "eth" },
           sender,
-          slippage: 0.1
+          slippage: DEFAULT_SLIPPAGE
+        };
+      }
+
+      if (isTokenToToken) {
+        if (!sourceCoinResolved.address || !hasDistinctTokenPair) {
+          return null;
+        }
+
+        return {
+          amountIn: parseUnits(amount, TOKEN_DECIMALS),
+          buy: { address: activeCoin.address as Address, type: "erc20" },
+          sell: {
+            address: sourceCoinResolved.address as Address,
+            type: "erc20"
+          },
+          sender,
+          slippage: DEFAULT_SLIPPAGE
         };
       }
 
@@ -786,7 +983,7 @@ const Swap = () => {
         buy: { type: "eth" },
         sell: { address: activeCoin.address as Address, type: "erc20" },
         sender,
-        slippage: 0.1
+        slippage: DEFAULT_SLIPPAGE
       };
     } catch {
       return null;
@@ -853,22 +1050,46 @@ const Swap = () => {
     amount,
     connectedTradeAddress,
     fromIsEth,
-    isFiatRail
+    hasDistinctTokenPair,
+    isFiatRail,
+    isTokenToToken,
+    sourceCoinResolved.address
   ]);
 
+  const sourceCoinOptions = useMemo(() => {
+    const filtered = sourceHoldings.filter(
+      (coin) => coin.address.toLowerCase() !== activeCoin.address.toLowerCase()
+    );
+
+    return filtered.length ? filtered : sourceHoldings;
+  }, [activeCoin.address, sourceHoldings]);
+  const targetCoinOptions = useMemo(() => {
+    if (!isTokenToToken || !sourceCoinResolved.address) {
+      return coins;
+    }
+
+    const filtered = coins.filter(
+      (coin) =>
+        coin.address.toLowerCase() !== sourceCoinResolved.address.toLowerCase()
+    );
+
+    return filtered.length ? filtered : coins;
+  }, [coins, isTokenToToken, sourceCoinResolved.address]);
+  const coinPickerCoins =
+    coinPickerTarget === "source" ? sourceCoinOptions : targetCoinOptions;
   const filteredCoins = useMemo(() => {
     const query = coinQuery.trim().toLowerCase();
 
     if (!query) {
-      return coins;
+      return coinPickerCoins;
     }
 
-    return coins.filter(
+    return coinPickerCoins.filter(
       (coin) =>
         coin.name.toLowerCase().includes(query) ||
         coin.symbol.toLowerCase().includes(query)
     );
-  }, [coinQuery, coins]);
+  }, [coinPickerCoins, coinQuery]);
 
   const latestHistoryPrice = useMemo(() => {
     const points = coinPriceHistoryQuery.data ?? [];
@@ -897,6 +1118,20 @@ const Swap = () => {
   const formattedTokenBalance = Number(
     formatUnits(tokenBalance, TOKEN_DECIMALS)
   );
+  const targetTokenBalance =
+    holdingByAddress.get(activeCoin.address.toLowerCase())?.balanceToken ?? 0;
+  const payCoinSymbol = payCoin?.symbol || activeCoin.symbol;
+  const fiatWallet =
+    fiatQuote?.wallet ||
+    publicFiatWalletQuery.data?.wallet ||
+    cachedWalletEntry?.wallet ||
+    null;
+  const fiatFunding = fiatQuote?.funding || null;
+  const fiatFundingBalanceLabel = describeFiatFundingBalance(fiatFunding);
+  const fiatPayoutBalanceLabel = describeFiatPayoutBalance(fiatFunding);
+  const nairaBalanceLabel = fiatWallet
+    ? formatNaira(fiatWallet.availableBalance ?? 0)
+    : `${NAIRA_SYMBOL}--`;
   const availableEthToSwap = Math.max(formattedEthBalance - 0.0002, 0);
   const hasSufficientBalance = hasValidAmount
     ? fromIsEth
@@ -915,149 +1150,208 @@ const Swap = () => {
     }
 
     try {
-      return fromIsEth
-        ? Number(formatUnits(BigInt(estimatedOut), TOKEN_DECIMALS))
-        : Number(formatEther(BigInt(estimatedOut)));
+      return toIsEth
+        ? Number(formatEther(BigInt(estimatedOut)))
+        : Number(formatUnits(BigInt(estimatedOut), TOKEN_DECIMALS));
     } catch {
       return 0;
     }
-  }, [estimatedOut, fromIsEth, isFiatRail]);
+  }, [estimatedOut, isFiatRail, toIsEth]);
+  const slippageLabel = formatSlippageLabel(DEFAULT_SLIPPAGE);
+  const minReceiveAmount =
+    receiveAmount > 0 ? receiveAmount * (1 - DEFAULT_SLIPPAGE) : 0;
+  const minReceiveLabel =
+    minReceiveAmount > 0
+      ? toIsEth
+        ? `${formatSwapAmount(minReceiveAmount, 6)} ETH`
+        : `${formatSwapAmount(minReceiveAmount, 2)} ${activeCoin.symbol}`
+      : "-";
   const payInputValue = amount;
+  const estimatedFiatReceiveValue = (() => {
+    if (!isFiatRail || !hasValidAmount || !activeCoin.priceNgn) {
+      return "0";
+    }
+
+    if (fromIsEth) {
+      const estimatedCoins = parsedAmount / activeCoin.priceNgn;
+      return Number.isFinite(estimatedCoins) && estimatedCoins > 0
+        ? formatSwapAmount(estimatedCoins, 2)
+        : "0";
+    }
+
+    const estimatedNaira = parsedAmount * activeCoin.priceNgn;
+    return Number.isFinite(estimatedNaira) && estimatedNaira > 0
+      ? formatSwapAmount(estimatedNaira, 0)
+      : "0";
+  })();
   const receiveInputValue = isFiatRail
-    ? fiatQuote?.displayValue || "0"
+    ? fiatQuote?.displayValue || estimatedFiatReceiveValue
     : receiveAmount > 0
-      ? formatSwapAmount(receiveAmount, fromIsEth ? 2 : 6)
+      ? formatSwapAmount(receiveAmount, toIsEth ? 6 : 2)
       : "0";
   const payBalanceLabel = isFiatRail
     ? fromIsEth
-      ? "Every1 Naira wallet"
-      : `${formatSwapAmount(formattedTokenBalance, 4)} ${activeCoin.symbol}`
+      ? nairaBalanceLabel
+      : `${formatSwapAmount(formattedTokenBalance, 4)} ${payCoinSymbol}`
     : fromIsEth
       ? formatEthAmount(formattedEthBalance, formattedEthBalance >= 1 ? 4 : 6)
-      : `${formatSwapAmount(formattedTokenBalance, 4)} ${activeCoin.symbol}`;
+      : `${formatSwapAmount(formattedTokenBalance, 4)} ${payCoinSymbol}`;
   const receiveBalanceLabel = isFiatRail
     ? fromIsEth
-      ? `${formatSwapAmount(formattedTokenBalance, 4)} ${activeCoin.symbol}`
-      : "Every1 Naira wallet"
-    : fromIsEth
-      ? `${formatSwapAmount(formattedTokenBalance, 4)} ${activeCoin.symbol}`
-      : formatEthAmount(formattedEthBalance, formattedEthBalance >= 1 ? 4 : 6);
+      ? `${formatSwapAmount(targetTokenBalance, 4)} ${activeCoin.symbol}`
+      : nairaBalanceLabel
+    : toIsEth
+      ? formatEthAmount(formattedEthBalance, formattedEthBalance >= 1 ? 4 : 6)
+      : `${formatSwapAmount(targetTokenBalance, 4)} ${activeCoin.symbol}`;
   const quoteNgnValue =
     receiveAmount > 0
-      ? fromIsEth
-        ? receiveAmount * activeCoin.priceNgn
-        : parsedAmount * activeCoin.priceNgn
+      ? toIsEth
+        ? parsedAmount * (payCoin?.priceNgn || activeCoin.priceNgn)
+        : receiveAmount * activeCoin.priceNgn
       : 0;
   const payHint = isFiatRail
     ? fromIsEth
-      ? "Use your Every1 Naira wallet balance"
-      : `Sell from your ${activeCoin.symbol} balance`
+      ? fiatQuote
+        ? `Using your ${fiatFundingBalanceLabel}`
+        : nairaBalanceLabel
+      : `Sell from your ${payCoinSymbol} balance`
     : fromIsEth
       ? "Wallet pays gas on Base"
-      : `Sell from your ${activeCoin.symbol} balance`;
+      : `Sell from your ${payCoinSymbol} balance`;
   const receiveHint = isFiatRail
     ? fiatQuoteError ||
       (fiatQuote
-        ? "Secure quote ready"
+        ? fromIsEth
+          ? `Quote ready from your ${fiatFundingBalanceLabel}`
+          : `Returns settle to your ${fiatPayoutBalanceLabel}`
         : fromIsEth
           ? ""
           : "See your estimated Naira return.")
-    : quoteNgnValue > 0
-      ? `Approx. ${formatNgn(quoteNgnValue)}`
-      : "Live quote";
+    : hasDistinctTokenPair
+      ? quoteNgnValue > 0
+        ? `Approx. ${formatNgn(quoteNgnValue)}`
+        : "Live quote"
+      : "Pick two different creator coins.";
+  const fiatBuySettlementBlockedMessage =
+    isFiatRail && fromIsEth && fiatQuote?.funding?.buySettlementReady === false
+      ? fiatQuote.funding.buySettlementMessage ||
+        "User-funded cNGN settlement is not ready yet."
+      : null;
   const tradeInputLabel = hasValidAmount
     ? fromIsEth
       ? isFiatRail
         ? formatNgn(parsedAmount)
         : formatEthAmount(parsedAmount)
-      : `${formatSwapAmount(parsedAmount, 4)} ${activeCoin.symbol}`
+      : `${formatSwapAmount(parsedAmount, 4)} ${payCoinSymbol}`
     : fromIsEth
       ? isFiatRail
         ? formatNgn(0)
         : "0 ETH"
-      : `0 ${activeCoin.symbol}`;
-  const tradeOutputLabel = isFiatRail
-    ? fiatQuote?.amountLabel ||
-      (fromIsEth ? `0 ${activeCoin.symbol}` : formatNgn(0))
-    : receiveAmount > 0
+      : `0 ${payCoinSymbol}`;
+  const estimatedFiatOutputLabel =
+    isFiatRail && hasValidAmount && activeCoin.priceNgn > 0
       ? fromIsEth
-        ? `${formatSwapAmount(receiveAmount, 2)} ${activeCoin.symbol}`
-        : formatEthAmount(receiveAmount)
+        ? `${estimatedFiatReceiveValue} ${activeCoin.symbol}`
+        : formatNgn(parsedAmount * activeCoin.priceNgn)
       : fromIsEth
         ? `0 ${activeCoin.symbol}`
-        : "0 ETH";
+        : formatNgn(0);
+  const tradeOutputLabel = isFiatRail
+    ? fiatQuote?.amountLabel || estimatedFiatOutputLabel
+    : receiveAmount > 0
+      ? toIsEth
+        ? formatEthAmount(receiveAmount)
+        : `${formatSwapAmount(receiveAmount, 2)} ${activeCoin.symbol}`
+      : toIsEth
+        ? "0 ETH"
+        : `0 ${activeCoin.symbol}`;
   const tradeRouteLabel = isFiatRail
     ? `${tradeInputLabel} -> ${tradeOutputLabel}`
     : receiveAmount > 0
       ? `${tradeInputLabel} -> ${tradeOutputLabel}`
-      : fromIsEth
-        ? isFiatRail
-          ? `${NAIRA_SYMBOL} to ${activeCoin.symbol}`
-          : `ETH to ${activeCoin.symbol}`
-        : isFiatRail
-          ? `${activeCoin.symbol} to ${NAIRA_SYMBOL}`
-          : `${activeCoin.symbol} to ETH`;
+      : isTokenToToken
+        ? `${payCoinSymbol} to ${activeCoin.symbol}`
+        : fromIsEth
+          ? `ETH to ${activeCoin.symbol}`
+          : `${payCoinSymbol} to ETH`;
   const canSubmit = isFiatRail
     ? Boolean(
         activeCoin.address &&
-          fiatWalletAddress &&
-          profile?.id &&
           hasValidAmount &&
           hasSufficientBalance &&
+          isFiatTradeEnabled &&
+          (!fromIsEth || !fiatQuote || !fiatBuySettlementBlockedMessage) &&
           !loading &&
           !fiatQuoteLoading
       )
     : Boolean(
         activeCoin.address &&
+          (fromIsEth || Boolean(payCoin?.address)) &&
           hasValidAmount &&
+          hasDistinctTokenPair &&
           receiveAmount > 0 &&
           hasSufficientBalance &&
           !loading
       );
   const swapButtonLabel = isFiatRail
-    ? fiatQuote
-      ? fromIsEth
-        ? "Confirm buy"
-        : "Confirm sell"
-      : fiatQuoteLoading
-        ? "Getting quote..."
-        : fromIsEth
-          ? `Get ${activeCoin.symbol} quote`
-          : "Get Naira quote"
-    : fromIsEth
-      ? `Swap to ${activeCoin.symbol}`
-      : "Swap to ETH";
-  const swapStatusNote = (
-    isFiatRail
-      ? fiatWalletAddress
-      : connectedTradeAddress
-  )
-    ? hasValidAmount
-      ? hasSufficientBalance
-        ? isFiatRail
-          ? fiatQuoteError ||
-            fiatQuote?.summary ||
-            "Get a secure Naira trade quote, then confirm."
-          : "Live quote via Zora on Base."
-        : fromIsEth
-          ? isFiatRail
-            ? "Your Naira wallet balance will be checked at confirmation."
-            : "Keep a little ETH aside for gas."
-          : `Not enough ${activeCoin.symbol} balance.`
-      : isFiatRail
-        ? "Enter an amount to request a Naira trade quote."
+    ? isFiatTradeEnabled
+      ? fiatQuote
+        ? fiatBuySettlementBlockedMessage
+          ? "Buy route pending"
+          : fromIsEth
+            ? "Confirm buy"
+            : "Confirm sell"
+        : fiatQuoteLoading
+          ? "Getting quote..."
+          : fromIsEth
+            ? `Get ${activeCoin.symbol} quote`
+            : "Get Naira quote"
+      : "Naira swaps disabled"
+    : isTokenToToken
+      ? hasDistinctTokenPair
+        ? `Swap to ${activeCoin.symbol}`
+        : "Pick another coin"
+      : fromIsEth
+        ? `Swap to ${activeCoin.symbol}`
+        : "Swap to ETH";
+  const swapStatusNote = isFiatRail
+    ? fiatWalletAddress
+      ? isFiatTradeEnabled
+        ? hasValidAmount
+          ? fiatBuySettlementBlockedMessage ||
+            (hasSufficientBalance
+              ? fiatQuoteError ||
+                fiatQuote?.summary ||
+                "Get a live Naira quote, then confirm."
+              : fromIsEth
+                ? "Your Naira wallet balance will be checked at confirmation."
+                : `Not enough ${payCoinSymbol} balance.`)
+          : "Enter an amount to request a Naira trade quote."
+        : "Test Naira balances can't be used to buy live coins yet."
+      : "Get a live Naira quote first. Wallet verification only happens on confirm."
+    : connectedTradeAddress
+      ? hasValidAmount
+        ? hasDistinctTokenPair
+          ? hasSufficientBalance
+            ? receiveAmount > 0
+              ? `Min received (${slippageLabel}): ${minReceiveLabel}.`
+              : "Live quote via Zora on Base."
+            : fromIsEth
+              ? "Keep a little ETH aside for gas."
+              : `Not enough ${payCoinSymbol} balance.`
+          : "Pick two different creator coins to swap."
         : "Enter an amount to get a live quote."
-    : isFiatRail
-      ? "We'll verify your Every1 wallet when you request a quote."
-      : "We'll prepare your Every1 wallet when you continue.";
+      : "We'll prepare your Every1 wallet when you continue."; /*
+      : "Test Naira balances can’t be used to buy live coins yet."
+  */
   const quoteExpiryText = fiatQuote
     ? `Valid until ${new Date(fiatQuote.expiresAt).toLocaleTimeString([], {
         hour: "numeric",
         minute: "2-digit"
       })}`
     : null;
-  const marketTokens = trendingCoins.slice(0, 5);
-  const marketHoldings = holdingCoins.slice(0, 5);
+  const marketTokens = (trendingCoins || []).slice(0, 5);
+  const marketHoldings = (holdingCoins || []).slice(0, 5);
   const rewardHistory = (walletActivityQuery.data || []).map((entry) => {
     const rewardAmount = Number(entry.amount) || 0;
     const isPositive = rewardAmount >= 0;
@@ -1079,10 +1373,45 @@ const Swap = () => {
       )}`
     } satisfies RecentSwapEntry;
   });
-  const marketHistory = [...recentSwaps, ...rewardHistory].slice(0, 5);
+  const tradeHistory = (fiatTransactionsQuery.data?.transactions || [])
+    .filter(
+      (transaction) =>
+        transaction.type === "support" || transaction.type === "sell"
+    )
+    .map((transaction) => {
+      const isSupport = transaction.type === "support";
+      const isPositive = transaction.direction === "credit";
+      const amountValue = isSupport
+        ? transaction.amountNaira
+        : transaction.netAmountNaira;
+      const coinSymbol = transaction.coinSymbol?.trim();
+      const coinLabel = coinSymbol
+        ? coinSymbol.startsWith(NAIRA_SYMBOL)
+          ? coinSymbol
+          : `${NAIRA_SYMBOL}${coinSymbol}`
+        : "Creator coin";
+
+      return {
+        amount: `${isPositive ? "+" : "-"}${formatNaira(amountValue)}`,
+        id: `fiat-${transaction.id}`,
+        isPositive,
+        label: isSupport ? `Buy ${coinLabel}` : `Sell ${coinLabel}`,
+        meta: `${transaction.title || (isSupport ? "Buy" : "Sell")} - ${formatRelativeOrAbsolute(
+          transaction.createdAt
+        )}`
+      } satisfies RecentSwapEntry;
+    });
+  const marketHistory = [
+    ...recentSwaps,
+    ...tradeHistory,
+    ...rewardHistory
+  ].slice(0, 5);
   const tokensLoading = trendingQuery.isLoading;
   const historyLoading =
-    walletActivityQuery.isLoading && recentSwaps.length === 0;
+    walletActivityQuery.isLoading &&
+    fiatTransactionsQuery.isLoading &&
+    recentSwaps.length === 0 &&
+    tradeHistory.length === 0;
   const holdingsLoading = holdingsQuery.isLoading;
 
   const handleChartMouseMove = (event: React.MouseEvent<SVGSVGElement>) => {
@@ -1111,11 +1440,16 @@ const Swap = () => {
 
   const closeCoinPicker = () => {
     setCoinQuery("");
+    setCoinPickerTarget("target");
     setIsCoinPickerOpen(false);
   };
 
   const handleCoinSelect = (coin: Coin) => {
-    setSelectedCoin(coin);
+    if (coinPickerTarget === "source") {
+      setSourceCoin(coin);
+    } else {
+      setSelectedCoin(coin);
+    }
     closeCoinPicker();
   };
 
@@ -1135,25 +1469,60 @@ const Swap = () => {
     );
   };
 
-  const handleFiatQuote = async () => {
-    if (!profile?.id || !fiatWalletAddress || !fiatWalletClient?.account) {
-      toast.error(
-        "Preparing your Every1 wallet. Please try again in a moment."
-      );
+  const openCoinPicker = (target: "source" | "target") => {
+    setCoinPickerTarget(target);
+    setIsCoinPickerOpen(true);
+  };
+
+  const handleDirectionChange = (
+    nextDirection: "ethToToken" | "tokenToEth" | "tokenToToken"
+  ) => {
+    setDirection(nextDirection);
+
+    if (nextDirection !== "tokenToToken") {
+      setCoinPickerTarget("target");
+    }
+  };
+
+  const handleSwapDirectionFlip = () => {
+    if (isTokenToToken) {
+      if (!sourceCoinResolved.address || !activeCoin.address) {
+        return;
+      }
+
+      setSourceCoin(activeCoin);
+      setSelectedCoin(sourceCoinResolved);
+      return;
+    }
+
+    setDirection((previous) =>
+      previous === "ethToToken" ? "tokenToEth" : "ethToToken"
+    );
+  };
+
+  const requestFiatQuote = async (options: { silent?: boolean } = {}) => {
+    if (!profile?.id) {
+      if (!options.silent) {
+        toast.error("Sign in to get a Naira quote.");
+      }
       return;
     }
 
     if (!hasValidAmount) {
-      toast.error(
-        fromIsEth
-          ? "Enter the Naira amount you want to use."
-          : `Enter the ${activeCoin.symbol} amount you want to sell.`
-      );
+      if (!options.silent) {
+        toast.error(
+          fromIsEth
+            ? "Enter the Naira amount you want to use."
+            : `Enter the ${activeCoin.symbol} amount you want to sell.`
+        );
+      }
       return;
     }
 
     if (!hasSufficientBalance) {
-      toast.error(`Not enough ${activeCoin.symbol} balance.`);
+      if (!options.silent) {
+        toast.error(`Not enough ${activeCoin.symbol} balance.`);
+      }
       return;
     }
 
@@ -1162,16 +1531,12 @@ const Swap = () => {
       setFiatQuoteError(null);
 
       if (fromIsEth) {
-        const activeExecutionWalletAddress =
-          await resolveFiatExecutionWalletAddress();
-        const quote = await getSupportQuote({
+        const quote = await getSupportQuotePublic({
           coinAddress: activeCoin.address as Address,
-          executionWalletAddress: activeExecutionWalletAddress,
+          executionWalletAddress: executionWalletAddress || undefined,
           idempotencyKey: createFiatIdempotencyKey("swap-support-quote"),
           nairaAmount: parsedAmount,
-          profileId: profile.id,
-          walletAddress: fiatWalletAddress,
-          walletClient: fiatWalletClient
+          profileId: profile.id
         });
 
         setFiatQuote({
@@ -1181,23 +1546,25 @@ const Swap = () => {
           )} ${activeCoin.symbol}`,
           displayValue: formatSwapAmount(quote.estimated_coin_amount, 2),
           expiresAt: quote.expires_at,
+          funding: quote.funding || null,
           quoteId: quote.quote_id,
           summary: `You'll receive approximately ${formatSwapAmount(
             quote.estimated_coin_amount,
             2
-          )} ${activeCoin.symbol} after ${formatNgn(quote.fee_naira)} in fees.`
+          )} ${activeCoin.symbol} after ${formatNgn(
+            quote.fee_naira
+          )} in fees. Paid from your ${describeFiatFundingBalance(
+            quote.funding
+          )}.`,
+          wallet: quote.wallet || null
         });
       } else {
-        const activeExecutionWalletAddress =
-          await resolveFiatExecutionWalletAddress();
-        const quote = await getSellQuote({
+        const quote = await getSellQuotePublic({
           coinAddress: activeCoin.address as Address,
           coinAmount: parsedAmount,
-          executionWalletAddress: activeExecutionWalletAddress,
+          executionWalletAddress: executionWalletAddress || undefined,
           idempotencyKey: createFiatIdempotencyKey("swap-sell-quote"),
-          profileId: profile.id,
-          walletAddress: fiatWalletAddress,
-          walletClient: fiatWalletClient
+          profileId: profile.id
         });
 
         setFiatQuote({
@@ -1206,6 +1573,7 @@ const Swap = () => {
             maximumFractionDigits: 0
           }),
           expiresAt: quote.expires_at,
+          funding: quote.funding || null,
           quoteId: quote.quote_id,
           settlement: {
             address: quote.settlement.address as Address,
@@ -1216,7 +1584,10 @@ const Swap = () => {
             quote.estimated_naira_return
           )} after ${formatNgn(
             quote.fee_naira
-          )} in fees once you confirm the secure wallet transfer.`
+          )} in fees once you confirm the secure wallet transfer. Returns settle to your ${describeFiatPayoutBalance(
+            quote.funding
+          )}.`,
+          wallet: quote.wallet || null
         });
       }
     } catch (error) {
@@ -1237,13 +1608,29 @@ const Swap = () => {
       );
       setFiatQuote(null);
       setFiatQuoteError(message);
-      toast.error(message);
+      if (!options.silent) {
+        toast.error(message);
+      }
     } finally {
       setFiatQuoteLoading(false);
     }
   };
 
+  const handleFiatQuote = async () => {
+    if (!isFiatTradeEnabled) {
+      toast.error("Naira swaps are disabled while using test balances.");
+      return;
+    }
+
+    await requestFiatQuote();
+  };
+
   const handleFiatSubmit = async () => {
+    if (!isFiatTradeEnabled) {
+      toast.error("Naira swaps are disabled while using test balances.");
+      return;
+    }
+
     if (!profile?.id || !fiatWalletAddress || !fiatWalletClient?.account) {
       toast.error(
         "Preparing your Every1 wallet. Please try again in a moment."
@@ -1337,47 +1724,79 @@ const Swap = () => {
         throw new Error(response.message || "Unable to complete this request.");
       }
 
-      if (response.status === "failed") {
+      let finalResponse = response;
+      const transactionId = fromIsEth
+        ? "support" in response
+          ? response.support?.id
+          : undefined
+        : "sell" in response
+          ? (response as SellExecuteResponse).sell?.id
+          : undefined;
+
+      if (profile.id && transactionId && shouldPollFiatExecution(response)) {
+        finalResponse = await pollFiatExecutionUntilSettled({
+          getStatus: () =>
+            fromIsEth
+              ? getSupportExecutionStatusPublic(profile.id, transactionId)
+              : getSellExecutionStatusPublic(profile.id, transactionId),
+          initialResponse: response
+        });
+      }
+
+      if (isFiatExecutionFailed(finalResponse)) {
         throw new Error(
-          response.message || "This buy trade could not be completed."
+          finalResponse.message || "This trade could not be completed."
         );
       }
 
+      const statusValue = getFiatExecutionStatus(finalResponse);
+      const isCompleted = isFiatExecutionCompleted(finalResponse);
+      const isStillProcessing = statusValue === "processing";
+
       setStatusModal({
-        description: response.message,
+        description: isStillProcessing
+          ? fromIsEth
+            ? "Your Naira buy is still settling. Check your wallet activity in a moment."
+            : "Your Naira sell is still settling. Check your wallet activity in a moment."
+          : finalResponse.message ||
+            (fromIsEth
+              ? "We're confirming your Naira buy."
+              : "We're confirming your Naira sell."),
         title: fromIsEth
-          ? response.status === "completed"
+          ? isCompleted
             ? "Buy completed!"
-            : "Buy finalizing"
-          : response.status === "completed"
+            : "Buy submitted"
+          : isCompleted
             ? "Sell completed!"
-            : "Sell finalizing",
-        tone: response.status === "completed" ? "success" : "pending"
+            : "Sell submitted",
+        tone: isCompleted ? "success" : "pending"
       });
 
-      const recentSwapEntry = fromIsEth
-        ? {
-            amount: `+${fiatQuote.amountLabel}`,
-            id: `${fiatQuote.quoteId}-${Date.now()}`,
-            isPositive: true,
-            label: `Bought ${activeCoin.symbol}`,
-            meta: `${tradeRouteLabel} - Just now`
-          }
-        : (() => {
-            const sellResponse = response as SellExecuteResponse;
-
-            return {
-              amount: `+${formatNgn(
-                sellResponse.sell?.estimatedNairaReturn || 0
-              )}`,
-              id: `${sellResponse.sell?.id || fiatQuote.quoteId}-${Date.now()}`,
+      if (isCompleted) {
+        const recentSwapEntry = fromIsEth
+          ? {
+              amount: `+${fiatQuote.amountLabel}`,
+              id: `${fiatQuote.quoteId}-${Date.now()}`,
               isPositive: true,
-              label: `Sold ${activeCoin.symbol}`,
+              label: `Bought ${activeCoin.symbol}`,
               meta: `${tradeRouteLabel} - Just now`
-            };
-          })();
+            }
+          : (() => {
+              const sellResponse = finalResponse as SellExecuteResponse;
 
-      setRecentSwaps((previous) => [recentSwapEntry, ...previous]);
+              return {
+                amount: `+${formatNgn(
+                  sellResponse.sell?.estimatedNairaReturn || 0
+                )}`,
+                id: `${sellResponse.sell?.id || fiatQuote.quoteId}-${Date.now()}`,
+                isPositive: true,
+                label: `Sold ${activeCoin.symbol}`,
+                meta: `${tradeRouteLabel} - Just now`
+              };
+            })();
+
+        setRecentSwaps((previous) => [recentSwapEntry, ...previous]);
+      }
 
       await Promise.all([
         queryClient.invalidateQueries({
@@ -1385,6 +1804,9 @@ const Swap = () => {
         }),
         queryClient.invalidateQueries({
           queryKey: ["fiat-wallet-transactions"]
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["fiat-wallet-public", profile.id]
         }),
         queryClient.invalidateQueries({
           queryKey: [EVERY1_NOTIFICATIONS_QUERY_KEY, profile.id]
@@ -1431,31 +1853,34 @@ const Swap = () => {
   };
 
   const renderAssetPill = ({
-    eth,
-    onClick
+    coin,
+    onClick,
+    type
   }: {
-    eth: boolean;
+    coin?: Coin | null;
     onClick?: () => void;
+    type: "coin" | "eth" | "ngn";
   }) => {
-    if (eth) {
+    if (type !== "coin") {
       return (
         <div className="inline-flex items-center gap-1.5 rounded-full border-0 bg-white px-2.5 py-1.5 font-semibold text-gray-900 text-xs shadow-none ring-0 md:gap-1.5 md:px-2.5 md:py-1.5 md:text-xs dark:bg-[#2b2d34] dark:text-white">
           <span
             className={cn(
               "flex h-6 w-6 items-center justify-center rounded-full text-[11px] md:h-6 md:w-6 md:text-[11px]",
-              isFiatRail
+              type === "ngn"
                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200"
                 : "bg-[#ece7ff] text-[#6d28d9] dark:bg-black/25 dark:text-white"
             )}
           >
-            {isFiatRail ? NAIRA_SYMBOL : "ETH"}
+            {type === "ngn" ? "NGN" : "ETH"}
           </span>
-          {isFiatRail ? NAIRA_SYMBOL : "ETH"}
+          {type === "ngn" ? "NGN" : "ETH"}
         </div>
       );
     }
 
     const Comp = onClick ? "button" : "div";
+    const assetCoin = coin ?? activeCoin;
 
     return (
       <Comp
@@ -1466,11 +1891,11 @@ const Swap = () => {
         {...(onClick ? { onClick, type: "button" as const } : {})}
       >
         <img
-          alt={activeCoin.name}
+          alt={assetCoin.name}
           className="h-6 w-6 rounded-full md:h-6 md:w-6"
-          src={activeCoin.avatarUrl}
+          src={assetCoin.avatarUrl}
         />
-        {activeCoin.symbol}
+        {assetCoin.symbol}
         {onClick ? (
           <ChevronDownIcon className="h-3.5 w-3.5 text-gray-400 dark:text-white/60" />
         ) : null}
@@ -1479,31 +1904,34 @@ const Swap = () => {
   };
 
   const renderMobileAssetPill = ({
-    eth,
-    onClick
+    coin,
+    onClick,
+    type
   }: {
-    eth: boolean;
+    coin?: Coin | null;
     onClick?: () => void;
+    type: "coin" | "eth" | "ngn";
   }) => {
-    if (eth) {
+    if (type !== "coin") {
       return (
         <div className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-1 font-semibold text-[10px] text-gray-900 dark:bg-[#34363e] dark:text-white">
           <span
             className={cn(
               "flex h-5 w-5 items-center justify-center rounded-full text-[9px]",
-              isFiatRail
+              type === "ngn"
                 ? "bg-emerald-500 text-white"
                 : "bg-[#d9cffc] text-[#3b2a6d] dark:bg-[#4a3f73] dark:text-white"
             )}
           >
-            {isFiatRail ? NAIRA_SYMBOL : "ETH"}
+            {type === "ngn" ? "NGN" : "ETH"}
           </span>
-          {isFiatRail ? NAIRA_SYMBOL : "ETH"}
+          {type === "ngn" ? "NGN" : "ETH"}
         </div>
       );
     }
 
     const Comp = onClick ? "button" : "div";
+    const assetCoin = coin ?? activeCoin;
 
     return (
       <Comp
@@ -1514,11 +1942,11 @@ const Swap = () => {
         {...(onClick ? { onClick, type: "button" as const } : {})}
       >
         <img
-          alt={activeCoin.name}
+          alt={assetCoin.name}
           className="h-5 w-5 rounded-full"
-          src={activeCoin.avatarUrl}
+          src={assetCoin.avatarUrl}
         />
-        {activeCoin.symbol}
+        {assetCoin.symbol}
         <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#9b7bff] text-[#161616] text-[9px]">
           ✓
         </span>
@@ -1528,6 +1956,62 @@ const Swap = () => {
       </Comp>
     );
   };
+
+  const railOptions = [
+    { label: "Naira", value: "fiat" as const },
+    { label: "Onchain", value: "onchain" as const }
+  ];
+  const onchainDirectionOptions = [
+    { label: "Buy", value: "ethToToken" as const },
+    { label: "Sell", value: "tokenToEth" as const },
+    { label: "Coin swap", value: "tokenToToken" as const }
+  ];
+
+  const renderRailToggle = () => (
+    <div className="inline-flex rounded-full bg-gray-100 p-0.5 font-semibold text-[9px] md:text-[10px] dark:bg-[#2a2b31]">
+      {railOptions.map((option) => (
+        <button
+          className={cn(
+            "rounded-full px-2 py-0.5 transition-colors md:px-2.5 md:py-1",
+            tradeRail === option.value
+              ? "bg-gray-950 text-white dark:bg-white dark:text-[#111111]"
+              : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+          )}
+          key={option.value}
+          onClick={() => {
+            setTradeRail(option.value);
+
+            if (option.value === "fiat" && isTokenToToken) {
+              setDirection("ethToToken");
+            }
+          }}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+  const renderOnchainDirectionToggle = () =>
+    isFiatRail ? null : (
+      <div className="inline-flex rounded-full bg-gray-100 p-0.5 font-semibold text-[9px] md:text-[10px] dark:bg-[#2a2b31]">
+        {onchainDirectionOptions.map((option) => (
+          <button
+            className={cn(
+              "rounded-full px-2 py-0.5 transition-colors md:px-2.5 md:py-1",
+              direction === option.value
+                ? "bg-gray-950 text-white dark:bg-white dark:text-[#111111]"
+                : "text-gray-500 hover:text-gray-900 dark:text-white/55 dark:hover:text-white"
+            )}
+            key={option.value}
+            onClick={() => handleDirectionChange(option.value)}
+            type="button"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    );
 
   const renderMarketSection = () => (
     <>
@@ -1571,84 +2055,69 @@ const Swap = () => {
       </div>
 
       {marketSectionTab === "tokens" ? (
-        <>
-          <div className="mb-2 flex items-center gap-1.5">
-            {["Rank", "Base", "24h"].map((filter) => (
-              <button
-                className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 font-semibold text-[10px] text-gray-600 dark:bg-[#2a2b31] dark:text-white/82"
-                key={filter}
-                type="button"
-              >
-                {filter}
-                <ChevronDownIcon className="h-3 w-3 text-gray-400 dark:text-white/45" />
-              </button>
-            ))}
-          </div>
+        tokensLoading ? (
+          <p className="text-[10px] text-gray-500 dark:text-white/42">
+            Loading tokens...
+          </p>
+        ) : marketTokens.length ? (
+          <div className="space-y-1">
+            {marketTokens.map((entry) => {
+              const active = entry.symbol === activeCoin.symbol;
+              const isPositive = isPositiveDelta(entry.percentChange);
 
-          {tokensLoading ? (
-            <p className="text-[10px] text-gray-500 dark:text-white/42">
-              Loading tokens...
-            </p>
-          ) : marketTokens.length ? (
-            <div className="space-y-1">
-              {marketTokens.map((entry) => {
-                const active = entry.symbol === activeCoin.symbol;
-                const isPositive = isPositiveDelta(entry.percentChange);
-
-                return (
-                  <button
-                    className={cn(
-                      "flex w-full items-center justify-between rounded-[1rem] px-0.5 py-0.5 text-left transition",
-                      active ? "bg-white/[0.03]" : "hover:bg-white/[0.02]"
-                    )}
-                    key={entry.symbol}
-                    onClick={() => setSelectedCoin(entry)}
-                    type="button"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="relative">
-                        <img
-                          alt={entry.name}
-                          className="h-9 w-9 rounded-full"
-                          src={entry.avatarUrl}
-                        />
-                        <span className="absolute right-0 bottom-0 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white font-bold text-[#141414] text-[8px]">
-                          E
-                        </span>
-                      </div>
-                      <div>
-                        <p className="font-semibold text-[12px] text-gray-900 dark:text-white">
-                          {entry.name}
-                        </p>
-                        <p className="text-[10px] text-gray-500 dark:text-white/42">
-                          MC {formatCompactNairaFromUsd(entry.marketCap)}
-                        </p>
-                      </div>
+              return (
+                <button
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-[1rem] px-0.5 py-0.5 text-left transition",
+                    active ? "bg-white/[0.03]" : "hover:bg-white/[0.02]"
+                  )}
+                  key={entry.symbol}
+                  onClick={() => setSelectedCoin(entry)}
+                  type="button"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <img
+                        alt={entry.name}
+                        className="h-9 w-9 rounded-full"
+                        src={entry.avatarUrl}
+                      />
+                      <span className="absolute right-0 bottom-0 inline-flex h-4 w-4 items-center justify-center rounded-full bg-white font-bold text-[#141414] text-[8px]">
+                        E
+                      </span>
                     </div>
-
-                    <div className="text-right">
+                    <div>
                       <p className="font-semibold text-[12px] text-gray-900 dark:text-white">
-                        {formatNgn(entry.priceNgn)}
+                        {entry.name}
                       </p>
-                      <p
-                        className={cn(
-                          "font-semibold text-[10px]",
-                          isPositive ? "text-emerald-400" : "text-rose-400"
-                        )}
-                      >
-                        {formatDelta(entry.percentChange)}
+                      <p className="text-[10px] text-gray-500 dark:text-white/42">
+                        MC {formatCompactNairaFromUsd(entry.marketCap)}
                       </p>
                     </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-[10px] text-gray-500 dark:text-white/42">
-              No tokens yet.
-            </p>
-          )}
-        </>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="font-semibold text-[12px] text-gray-900 dark:text-white">
+                      {formatNgn(entry.priceNgn)}
+                    </p>
+                    <p
+                      className={cn(
+                        "font-semibold text-[10px]",
+                        isPositive ? "text-emerald-400" : "text-rose-400"
+                      )}
+                    >
+                      {formatDelta(entry.percentChange)}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="text-[10px] text-gray-500 dark:text-white/42">
+            No tokens yet.
+          </p>
+        )
       ) : null}
 
       {marketSectionTab === "history" ? (
@@ -1763,7 +2232,7 @@ const Swap = () => {
       toast.error(
         fromIsEth
           ? "Not enough ETH balance for this swap"
-          : `Not enough ${activeCoin.symbol} balance`
+          : `Not enough ${payCoinSymbol} balance`
       );
       return;
     }
@@ -1801,9 +2270,11 @@ const Swap = () => {
           amount: `+${tradeOutputLabel}`,
           id: receipt.transactionHash,
           isPositive: true,
-          label: fromIsEth
-            ? `Bought ${activeCoin.symbol}`
-            : `Sold ${activeCoin.symbol}`,
+          label: isTokenToToken
+            ? `Swapped ${payCoinSymbol} to ${activeCoin.symbol}`
+            : fromIsEth
+              ? `Bought ${activeCoin.symbol}`
+              : `Sold ${activeCoin.symbol}`,
           meta: `${tradeRouteLabel} - Just now`
         },
         ...previous.filter((entry) => entry.id !== receipt.transactionHash)
@@ -1815,7 +2286,12 @@ const Swap = () => {
         tone: "success"
       });
 
-      if (profile?.id && fiatWalletAddress && fiatWalletClient?.account) {
+      if (
+        !isTokenToToken &&
+        profile?.id &&
+        fiatWalletAddress &&
+        fiatWalletClient?.account
+      ) {
         const tokenAmount = fromIsEth
           ? estimatedOut
             ? Number(formatUnits(BigInt(estimatedOut), TOKEN_DECIMALS))
@@ -1844,7 +2320,7 @@ const Swap = () => {
         });
       }
 
-      if (profile?.id) {
+      if (!isTokenToToken && profile?.id) {
         try {
           const rewardResult = await recordReferralTradeReward({
             chainId: base.id,
@@ -1906,7 +2382,7 @@ const Swap = () => {
         coinAddress: activeCoin.address,
         coinSymbol: activeCoin.symbol,
         inputLabel: tradeInputLabel,
-        mode: fromIsEth ? "buy" : "sell",
+        mode: isTokenToToken ? "swap" : fromIsEth ? "buy" : "sell",
         outputLabel: tradeOutputLabel,
         profileId: profile?.id || null,
         receiveAmount
@@ -2042,10 +2518,10 @@ const Swap = () => {
                       {formatChartNgn(displayPrice)}
                     </p>
                     <div className="mt-0.5 flex items-center justify-end gap-1 font-semibold text-[10px] text-gray-600 md:text-[11px] dark:text-gray-300">
-                      <span className="hidden md:inline">
+                      <span>
                         MC {formatCompact(activeCoin.marketCap, usdToNgnRate)}
                       </span>
-                      <span className="hidden text-gray-500 md:inline">|</span>
+                      <span className="text-gray-500">|</span>
                       <span
                         className={
                           trendUp
@@ -2068,7 +2544,11 @@ const Swap = () => {
               </div>
             </Card>
 
-            <div className="flex items-center justify-end gap-2 px-0.5">
+            <div className="flex items-center justify-between gap-2 px-0.5">
+              <div className="flex items-center gap-1.5">
+                {renderRailToggle()}
+                {renderOnchainDirectionToggle()}
+              </div>
               {quoteExpiryText ? (
                 <p className="text-[10px] text-gray-500 dark:text-white/42">
                   {quoteExpiryText}
@@ -2102,10 +2582,18 @@ const Swap = () => {
                       />
                     </div>
                     {renderMobileAssetPill({
-                      eth: fromIsEth,
-                      onClick: fromIsEth
-                        ? undefined
-                        : () => setIsCoinPickerOpen(true)
+                      coin: payCoin,
+                      onClick: payCoin
+                        ? () =>
+                            openCoinPicker(isTokenToToken ? "source" : "target")
+                        : undefined,
+                      type: isFiatRail
+                        ? fromIsEth
+                          ? "ngn"
+                          : "coin"
+                        : fromIsEth
+                          ? "eth"
+                          : "coin"
                     })}
                   </div>
 
@@ -2128,11 +2616,7 @@ const Swap = () => {
                 <div className="relative z-10 -my-1.5 flex justify-center">
                   <button
                     className="inline-flex h-5.5 w-5.5 items-center justify-center rounded-full border-[2px] border-white bg-[#b79cff] text-[#191919] dark:border-[#191b20]"
-                    onClick={() =>
-                      setDirection((previous) =>
-                        previous === "ethToToken" ? "tokenToEth" : "ethToToken"
-                      )
-                    }
+                    onClick={handleSwapDirectionFlip}
                     type="button"
                   >
                     <ArrowsRightLeftIcon className="h-2 w-2" />
@@ -2154,10 +2638,17 @@ const Swap = () => {
                       />
                     </div>
                     {renderMobileAssetPill({
-                      eth: !fromIsEth,
-                      onClick: fromIsEth
-                        ? () => setIsCoinPickerOpen(true)
-                        : undefined
+                      coin: receiveCoin,
+                      onClick: receiveCoin
+                        ? () => openCoinPicker("target")
+                        : undefined,
+                      type: isFiatRail
+                        ? fromIsEth
+                          ? "coin"
+                          : "ngn"
+                        : toIsEth
+                          ? "eth"
+                          : "coin"
                     })}
                   </div>
 
@@ -2213,10 +2704,20 @@ const Swap = () => {
                         />
                       </div>
                       {renderAssetPill({
-                        eth: fromIsEth,
-                        onClick: fromIsEth
-                          ? undefined
-                          : () => setIsCoinPickerOpen(true)
+                        coin: payCoin,
+                        onClick: payCoin
+                          ? () =>
+                              openCoinPicker(
+                                isTokenToToken ? "source" : "target"
+                              )
+                          : undefined,
+                        type: isFiatRail
+                          ? fromIsEth
+                            ? "ngn"
+                            : "coin"
+                          : fromIsEth
+                            ? "eth"
+                            : "coin"
                       })}
                     </div>
 
@@ -2242,13 +2743,7 @@ const Swap = () => {
                   <div className="relative z-10 -my-3.5 flex justify-center md:-my-3">
                     <button
                       className="inline-flex h-9 w-9 items-center justify-center rounded-full border-4 border-white bg-[#b79cff] text-[#141414] shadow-[0_10px_22px_-16px_rgba(124,58,237,0.8)] md:h-9 md:w-9 dark:border-[#111217] dark:bg-[#b79cff]"
-                      onClick={() =>
-                        setDirection((previous) =>
-                          previous === "ethToToken"
-                            ? "tokenToEth"
-                            : "ethToToken"
-                        )
-                      }
+                      onClick={handleSwapDirectionFlip}
                       type="button"
                     >
                       <ArrowsRightLeftIcon className="h-4.5 w-4.5" />
@@ -2270,10 +2765,17 @@ const Swap = () => {
                         />
                       </div>
                       {renderAssetPill({
-                        eth: !fromIsEth,
-                        onClick: fromIsEth
-                          ? () => setIsCoinPickerOpen(true)
-                          : undefined
+                        coin: receiveCoin,
+                        onClick: receiveCoin
+                          ? () => openCoinPicker("target")
+                          : undefined,
+                        type: isFiatRail
+                          ? fromIsEth
+                            ? "coin"
+                            : "ngn"
+                          : toIsEth
+                            ? "eth"
+                            : "coin"
                       })}
                     </div>
 
@@ -2293,7 +2795,11 @@ const Swap = () => {
                 <div className="flex items-center justify-between text-[10px] text-gray-500 md:text-[10px] dark:text-white/48">
                   <span>Execution</span>
                   <span className="font-semibold text-gray-900 dark:text-white">
-                    {isFiatRail ? "Naira wallet flow" : "Onchain on Base"}
+                    {isFiatRail
+                      ? fiatFunding?.tradeFundingRail === "cngn"
+                        ? "Naira wallet flow · cNGN-backed"
+                        : "Naira wallet flow"
+                      : "Onchain on Base"}
                   </span>
                 </div>
                 <div className="mt-0.5 flex items-center justify-between text-[10px] text-gray-500 md:text-[10px] dark:text-white/48">
@@ -2348,7 +2854,9 @@ const Swap = () => {
             >
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-base md:text-lg">
-                  Pick coin
+                  {coinPickerTarget === "source"
+                    ? "Pick source coin"
+                    : "Pick target coin"}
                 </h3>
                 <button
                   aria-label="Close"
@@ -2371,46 +2879,54 @@ const Swap = () => {
               </div>
 
               <div className="mt-3 space-y-1">
-                {filteredCoins.map((coin) => (
-                  <button
-                    className="flex w-full items-center justify-between rounded-2xl px-2.5 py-2 text-left transition hover:bg-gray-100 dark:hover:bg-[#1f1f26]"
-                    key={coin.symbol}
-                    onClick={() => handleCoinSelect(coin)}
-                    type="button"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img
-                        alt={coin.name}
-                        className="h-10 w-10 rounded-full"
-                        src={coin.avatarUrl}
-                      />
-                      <div>
-                        <p className="font-semibold text-gray-900 text-sm dark:text-white">
-                          {coin.name}
+                {filteredCoins.length ? (
+                  filteredCoins.map((coin) => (
+                    <button
+                      className="flex w-full items-center justify-between rounded-2xl px-2.5 py-2 text-left transition hover:bg-gray-100 dark:hover:bg-[#1f1f26]"
+                      key={coin.address}
+                      onClick={() => handleCoinSelect(coin)}
+                      type="button"
+                    >
+                      <div className="flex items-center gap-3">
+                        <img
+                          alt={coin.name}
+                          className="h-10 w-10 rounded-full"
+                          src={coin.avatarUrl}
+                        />
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm dark:text-white">
+                            {coin.name}
+                          </p>
+                          <p className="text-gray-500 text-xs dark:text-[#9a9aa2]">
+                            {coin.symbol}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="font-semibold text-sm">
+                          {formatNgn(coin.priceNgn)}
                         </p>
-                        <p className="text-gray-500 text-xs dark:text-[#9a9aa2]">
-                          {coin.symbol}
+                        <p
+                          className={
+                            coin.percentChange >= 0
+                              ? "text-green-400 text-xs"
+                              : "text-pink-400 text-xs"
+                          }
+                        >
+                          {coin.percentChange >= 0 ? "Up" : "Down"}{" "}
+                          {Math.abs(coin.percentChange)}%
                         </p>
                       </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="font-semibold text-sm">
-                        {formatNgn(coin.priceNgn)}
-                      </p>
-                      <p
-                        className={
-                          coin.percentChange >= 0
-                            ? "text-green-400 text-xs"
-                            : "text-pink-400 text-xs"
-                        }
-                      >
-                        {coin.percentChange >= 0 ? "Up" : "Down"}{" "}
-                        {Math.abs(coin.percentChange)}%
-                      </p>
-                    </div>
-                  </button>
-                ))}
+                    </button>
+                  ))
+                ) : (
+                  <div className="rounded-2xl bg-gray-100 px-3 py-4 text-center text-gray-500 text-sm dark:bg-[#1f1f26] dark:text-[#9a9aa2]">
+                    {coinPickerTarget === "source"
+                      ? "You need a creator coin balance before you can swap into another coin."
+                      : "No coins matched that search."}
+                  </div>
+                )}
               </div>
             </div>
           </div>

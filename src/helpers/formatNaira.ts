@@ -36,15 +36,23 @@ export const formatCompactNaira = (value: number, digits = 2) => {
   return `${NAIRA_SYMBOL}${nFormatter(safeValue, digits)}`;
 };
 
-export const convertUsdToNgn = (value: number) => {
+export const convertUsdToNgn = (value: number, usdToNgnRate?: number) => {
   const safeValue = Number.isFinite(value) && value > 0 ? value : 0;
-  return safeValue * USD_TO_NGN_RATE;
+  const rate =
+    Number.isFinite(usdToNgnRate) && (usdToNgnRate ?? 0) > 0
+      ? (usdToNgnRate as number)
+      : USD_TO_NGN_RATE;
+  return safeValue * rate;
 };
 
 export const formatNairaFromUsd = (
   value: number,
-  options: FormatNairaOptions = {}
-) => formatNaira(convertUsdToNgn(value), options);
+  options: FormatNairaOptions = {},
+  usdToNgnRate?: number
+) => formatNaira(convertUsdToNgn(value, usdToNgnRate), options);
 
-export const formatCompactNairaFromUsd = (value: number, digits = 2) =>
-  formatCompactNaira(convertUsdToNgn(value), digits);
+export const formatCompactNairaFromUsd = (
+  value: number,
+  digits = 2,
+  usdToNgnRate?: number
+) => formatCompactNaira(convertUsdToNgn(value, usdToNgnRate), digits);

@@ -1,11 +1,22 @@
 import type { Address, Hex, WalletClient } from "viem";
 import { logActionError } from "@/helpers/actionErrorLogger";
 import type {
+  FiatCngnBanksResponse,
+  FiatCngnDepositReconcileResponse,
+  FiatCngnRailResponse,
+  FiatCngnRedeemInput,
+  FiatCngnRedeemResponse,
+  FiatCngnVerifyWithdrawalResponse,
+  FiatCngnVirtualAccountInput,
+  FiatCngnVirtualAccountResponse,
+  FiatCngnWithdrawInput,
+  FiatCngnWithdrawResponse,
   FiatCreatorCoin,
   FiatCreatorCoinActivityResponse,
   FiatCreatorProfile,
   FiatDepositInitiateInput,
   FiatDepositInitiateResponse,
+  FiatTradeReconcileResponse,
   FiatWalletResponse,
   FiatWalletTransactionsResponse,
   FiatWithdrawInput,
@@ -17,7 +28,19 @@ import type {
   SupportExecuteInput,
   SupportExecuteResponse,
   SupportQuoteInput,
-  SupportQuoteResponse
+  SupportQuoteResponse,
+  SwapExecuteCoinToCoinInput,
+  SwapExecuteCoinToCoinResponse,
+  SwapExecuteCoinToNgnInput,
+  SwapExecuteCoinToNgnResponse,
+  SwapExecuteNgnToCoinInput,
+  SwapExecuteNgnToCoinResponse,
+  SwapQuoteCoinToCoinInput,
+  SwapQuoteCoinToCoinResponse,
+  SwapQuoteCoinToNgnInput,
+  SwapQuoteCoinToNgnResponse,
+  SwapQuoteNgnToCoinInput,
+  SwapQuoteNgnToCoinResponse
 } from "@/types/fiat";
 
 const parseResponseError = async (response: Response) => {
@@ -214,6 +237,103 @@ export const getFiatWalletPublic = (profileId: string) =>
     profileIdHeader: profileId
   });
 
+export const getFiatCngnRailStatusPublic = (profileId: string) =>
+  fiatFetch<FiatCngnRailResponse>({
+    method: "GET",
+    path: "/api/wallet/providers/cngn",
+    profileIdHeader: profileId
+  });
+
+export const getFiatCngnBanksPublic = (profileId: string) =>
+  fiatFetch<FiatCngnBanksResponse>({
+    method: "GET",
+    path: "/api/wallet/providers/cngn/banks",
+    profileIdHeader: profileId
+  });
+
+export const createFiatCngnVirtualAccountPublic = (
+  input: FiatCngnVirtualAccountInput & {
+    profileId: string;
+  }
+) =>
+  fiatFetch<FiatCngnVirtualAccountResponse>({
+    body: {
+      idempotencyKey: input.idempotencyKey,
+      provider: input.provider
+    },
+    method: "POST",
+    path: "/api/wallet/providers/cngn/virtual-account",
+    profileIdHeader: input.profileId
+  });
+
+export const reconcileFiatCngnDepositsPublic = (profileId: string) =>
+  fiatFetch<FiatCngnDepositReconcileResponse>({
+    method: "POST",
+    path: "/api/wallet/providers/cngn/deposits/reconcile",
+    profileIdHeader: profileId
+  });
+
+export const reconcileFiatTradesPublic = (profileId: string) =>
+  fiatFetch<FiatTradeReconcileResponse>({
+    method: "POST",
+    path: "/api/wallet/trades/reconcile",
+    profileIdHeader: profileId
+  });
+
+export const redeemFiatCngn = (
+  input: FiatCngnRedeemInput & {
+    profileId: string;
+    walletAddress: Address;
+    walletClient: WalletClient;
+  }
+) =>
+  fiatFetch<FiatCngnRedeemResponse>({
+    body: {
+      accountNumber: input.accountNumber,
+      amount: input.amount,
+      bankCode: input.bankCode,
+      idempotencyKey: input.idempotencyKey,
+      saveDetails: input.saveDetails
+    },
+    method: "POST",
+    path: "/api/wallet/providers/cngn/redeem",
+    profileId: input.profileId,
+    walletAddress: input.walletAddress,
+    walletClient: input.walletClient
+  });
+
+export const withdrawFiatCngn = (
+  input: FiatCngnWithdrawInput & {
+    profileId: string;
+    walletAddress: Address;
+    walletClient: WalletClient;
+  }
+) =>
+  fiatFetch<FiatCngnWithdrawResponse>({
+    body: {
+      address: input.address,
+      amount: input.amount,
+      idempotencyKey: input.idempotencyKey,
+      network: input.network,
+      shouldSaveAddress: input.shouldSaveAddress
+    },
+    method: "POST",
+    path: "/api/wallet/providers/cngn/withdraw",
+    profileId: input.profileId,
+    walletAddress: input.walletAddress,
+    walletClient: input.walletClient
+  });
+
+export const verifyFiatCngnWithdrawalPublic = (
+  profileId: string,
+  transactionRef: string
+) =>
+  fiatFetch<FiatCngnVerifyWithdrawalResponse>({
+    method: "GET",
+    path: `/api/wallet/providers/cngn/withdraw/${encodeURIComponent(transactionRef)}`,
+    profileIdHeader: profileId
+  });
+
 export const getFiatWalletTransactions = (input: {
   limit?: number;
   profileId: string;
@@ -331,6 +451,27 @@ export const getSupportQuote = (
     walletClient: input.walletClient
   });
 
+export const getSupportQuotePublic = (
+  input: SupportQuoteInput & {
+    profileId: string;
+  }
+) =>
+  fiatFetch<SupportQuoteResponse>({
+    body: {
+      coinAddress: input.coinAddress,
+      creatorCoinId: input.creatorCoinId,
+      creatorId: input.creatorId,
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      launchId: input.launchId,
+      nairaAmount: input.nairaAmount,
+      ticker: input.ticker
+    },
+    method: "POST",
+    path: "/api/support/quote",
+    profileIdHeader: input.profileId
+  });
+
 export const executeSupport = (
   input: SupportExecuteInput & {
     profileId: string;
@@ -346,6 +487,82 @@ export const executeSupport = (
     },
     method: "POST",
     path: "/api/support/execute",
+    profileId: input.profileId,
+    walletAddress: input.walletAddress,
+    walletClient: input.walletClient
+  });
+
+export const getSupportExecutionStatusPublic = (
+  profileId: string,
+  transactionId: string
+) =>
+  fiatFetch<SupportExecuteResponse>({
+    method: "GET",
+    path: `/api/support/transactions/${encodeURIComponent(transactionId)}`,
+    profileIdHeader: profileId
+  });
+
+export const getSwapQuoteNgnToCoin = (
+  input: SwapQuoteNgnToCoinInput & {
+    profileId: string;
+    walletAddress: Address;
+    walletClient: WalletClient;
+  }
+) =>
+  fiatFetch<SwapQuoteNgnToCoinResponse>({
+    body: {
+      coinAddress: input.coinAddress,
+      creatorCoinId: input.creatorCoinId,
+      creatorId: input.creatorId,
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      launchId: input.launchId,
+      nairaAmount: input.nairaAmount,
+      ticker: input.ticker
+    },
+    method: "POST",
+    path: "/api/swap/quote/ngn-to-coin",
+    profileId: input.profileId,
+    walletAddress: input.walletAddress,
+    walletClient: input.walletClient
+  });
+
+export const getSwapQuoteNgnToCoinPublic = (
+  input: SwapQuoteNgnToCoinInput & {
+    profileId: string;
+  }
+) =>
+  fiatFetch<SwapQuoteNgnToCoinResponse>({
+    body: {
+      coinAddress: input.coinAddress,
+      creatorCoinId: input.creatorCoinId,
+      creatorId: input.creatorId,
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      launchId: input.launchId,
+      nairaAmount: input.nairaAmount,
+      ticker: input.ticker
+    },
+    method: "POST",
+    path: "/api/swap/quote/ngn-to-coin",
+    profileIdHeader: input.profileId
+  });
+
+export const executeSwapNgnToCoin = (
+  input: SwapExecuteNgnToCoinInput & {
+    profileId: string;
+    walletAddress: Address;
+    walletClient: WalletClient;
+  }
+) =>
+  fiatFetch<SwapExecuteNgnToCoinResponse>({
+    body: {
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      quoteId: input.quoteId
+    },
+    method: "POST",
+    path: "/api/swap/execute/ngn-to-coin",
     profileId: input.profileId,
     walletAddress: input.walletAddress,
     walletClient: input.walletClient
@@ -375,6 +592,26 @@ export const getSellQuote = (
     walletClient: input.walletClient
   });
 
+export const getSellQuotePublic = (
+  input: SellQuoteInput & {
+    profileId: string;
+  }
+) =>
+  fiatFetch<SellQuoteResponse>({
+    body: {
+      coinAddress: input.coinAddress,
+      coinAmount: input.coinAmount,
+      creatorCoinId: input.creatorCoinId,
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      launchId: input.launchId,
+      ticker: input.ticker
+    },
+    method: "POST",
+    path: "/api/sell/quote",
+    profileIdHeader: input.profileId
+  });
+
 export const executeSell = (
   input: SellExecuteInput & {
     profileId: string;
@@ -391,6 +628,130 @@ export const executeSell = (
     },
     method: "POST",
     path: "/api/sell/execute",
+    profileId: input.profileId,
+    walletAddress: input.walletAddress,
+    walletClient: input.walletClient
+  });
+
+export const getSellExecutionStatusPublic = (
+  profileId: string,
+  transactionId: string
+) =>
+  fiatFetch<SellExecuteResponse>({
+    method: "GET",
+    path: `/api/sell/transactions/${encodeURIComponent(transactionId)}`,
+    profileIdHeader: profileId
+  });
+
+export const getSwapQuoteCoinToNgn = (
+  input: SwapQuoteCoinToNgnInput & {
+    profileId: string;
+    walletAddress: Address;
+    walletClient: WalletClient;
+  }
+) =>
+  fiatFetch<SwapQuoteCoinToNgnResponse>({
+    body: {
+      coinAddress: input.coinAddress,
+      coinAmount: input.coinAmount,
+      creatorCoinId: input.creatorCoinId,
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      launchId: input.launchId,
+      ticker: input.ticker
+    },
+    method: "POST",
+    path: "/api/swap/quote/coin-to-ngn",
+    profileId: input.profileId,
+    walletAddress: input.walletAddress,
+    walletClient: input.walletClient
+  });
+
+export const getSwapQuoteCoinToNgnPublic = (
+  input: SwapQuoteCoinToNgnInput & {
+    profileId: string;
+  }
+) =>
+  fiatFetch<SwapQuoteCoinToNgnResponse>({
+    body: {
+      coinAddress: input.coinAddress,
+      coinAmount: input.coinAmount,
+      creatorCoinId: input.creatorCoinId,
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      launchId: input.launchId,
+      ticker: input.ticker
+    },
+    method: "POST",
+    path: "/api/swap/quote/coin-to-ngn",
+    profileIdHeader: input.profileId
+  });
+
+export const executeSwapCoinToNgn = (
+  input: SwapExecuteCoinToNgnInput & {
+    profileId: string;
+    walletAddress: Address;
+    walletClient: WalletClient;
+  }
+) =>
+  fiatFetch<SwapExecuteCoinToNgnResponse>({
+    body: {
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      quoteId: input.quoteId,
+      transactionHash: input.transactionHash
+    },
+    method: "POST",
+    path: "/api/swap/execute/coin-to-ngn",
+    profileId: input.profileId,
+    walletAddress: input.walletAddress,
+    walletClient: input.walletClient
+  });
+
+export const getSwapQuoteCoinToCoin = (
+  input: SwapQuoteCoinToCoinInput & {
+    profileId: string;
+    walletAddress: Address;
+    walletClient: WalletClient;
+  }
+) =>
+  fiatFetch<SwapQuoteCoinToCoinResponse>({
+    body: {
+      executionWalletAddress: input.executionWalletAddress,
+      fromCoinAddress: input.fromCoinAddress,
+      fromCoinAmount: input.fromCoinAmount,
+      fromCreatorCoinId: input.fromCreatorCoinId,
+      fromLaunchId: input.fromLaunchId,
+      fromTicker: input.fromTicker,
+      idempotencyKey: input.idempotencyKey,
+      toCoinAddress: input.toCoinAddress,
+      toCreatorCoinId: input.toCreatorCoinId,
+      toLaunchId: input.toLaunchId,
+      toTicker: input.toTicker
+    },
+    method: "POST",
+    path: "/api/swap/quote/coin-to-coin",
+    profileId: input.profileId,
+    walletAddress: input.walletAddress,
+    walletClient: input.walletClient
+  });
+
+export const executeSwapCoinToCoin = (
+  input: SwapExecuteCoinToCoinInput & {
+    profileId: string;
+    walletAddress: Address;
+    walletClient: WalletClient;
+  }
+) =>
+  fiatFetch<SwapExecuteCoinToCoinResponse>({
+    body: {
+      executionWalletAddress: input.executionWalletAddress,
+      idempotencyKey: input.idempotencyKey,
+      quoteId: input.quoteId,
+      transactionHash: input.transactionHash
+    },
+    method: "POST",
+    path: "/api/swap/execute/coin-to-coin",
     profileId: input.profileId,
     walletAddress: input.walletAddress,
     walletClient: input.walletClient

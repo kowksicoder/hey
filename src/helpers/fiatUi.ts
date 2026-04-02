@@ -1,3 +1,5 @@
+import type { SellExecuteResponse, SupportExecuteResponse } from "@/types/fiat";
+
 const NOT_READY_PATTERNS = [
   "public.fiat_",
   "support_quotes",
@@ -5,6 +7,8 @@ const NOT_READY_PATTERNS = [
   "fiat_wallets",
   "schema cache"
 ];
+
+type FiatExecutionResponse = SellExecuteResponse | SupportExecuteResponse;
 
 export const createFiatIdempotencyKey = (scope: string) => {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -50,4 +54,55 @@ export const normalizeFiatUiError = (
   }
 
   return normalized;
+};
+
+export const getFiatExecutionStatus = (response: FiatExecutionResponse) =>
+  (
+    response.status ||
+    ("support" in response ? response.support?.status : undefined) ||
+    ("sell" in response ? response.sell?.status : undefined) ||
+    ""
+  )
+    .toString()
+    .toLowerCase();
+
+export const isFiatExecutionCompleted = (response: FiatExecutionResponse) => {
+  const status = getFiatExecutionStatus(response);
+  return status === "completed" || status === "succeeded";
+};
+
+export const isFiatExecutionFailed = (response: FiatExecutionResponse) =>
+  getFiatExecutionStatus(response) === "failed";
+
+export const shouldPollFiatExecution = (response: FiatExecutionResponse) =>
+  Boolean(
+    response.shouldPoll || getFiatExecutionStatus(response) === "processing"
+  );
+
+export const sleep = (ms: number) =>
+  new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+
+export const pollFiatExecutionUntilSettled = async <
+  TResponse extends FiatExecutionResponse
+>({
+  getStatus,
+  initialResponse,
+  maxAttempts = 6
+}: {
+  getStatus: () => Promise<TResponse>;
+  initialResponse: TResponse;
+  maxAttempts?: number;
+}) => {
+  let latest = initialResponse;
+  let attempts = 0;
+
+  while (shouldPollFiatExecution(latest) && attempts < maxAttempts) {
+    await sleep(latest.refreshAfterMs || 5000);
+    latest = await getStatus();
+    attempts += 1;
+  }
+
+  return latest;
 };

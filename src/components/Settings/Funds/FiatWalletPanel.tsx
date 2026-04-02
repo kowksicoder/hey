@@ -13,22 +13,26 @@ import Loader from "@/components/Shared/Loader";
 import { Button, ErrorMessage, Modal } from "@/components/Shared/UI";
 import { logActionError } from "@/helpers/actionErrorLogger";
 import {
-  readFiatWalletCache,
-  type FiatWalletCacheEntry,
-  writeFiatWalletCache
-} from "@/helpers/fiatWalletCache";
-import {
   getFiatWallet,
   getFiatWalletPublic,
-  getFiatWalletTransactions,
+  getFiatWalletTransactionsPublic,
   initiateFiatDepositPublic,
+  reconcileFiatCngnDepositsPublic,
+  reconcileFiatTradesPublic,
   withdrawFiat
 } from "@/helpers/fiat";
+import {
+  type FiatWalletCacheEntry,
+  readFiatWalletCache,
+  writeFiatWalletCache
+} from "@/helpers/fiatWalletCache";
+import { openFlutterwaveCheckout } from "@/helpers/flutterwaveCheckout";
 import { formatNaira, USD_TO_NGN_RATE } from "@/helpers/formatNaira";
 import { getPrivyDisplayName } from "@/helpers/privy";
 import useEvery1ExecutionWallet from "@/hooks/useEvery1ExecutionWallet";
 import { useAccountStore } from "@/store/persisted/useAccountStore";
 import { useEvery1Store } from "@/store/persisted/useEvery1Store";
+import type { FiatDepositInitiateResponse } from "@/types/fiat";
 
 const formatRelativeDate = (value?: null | string) => {
   if (!value) {
@@ -64,24 +68,41 @@ const formatPercent = (value: number) =>
 const actionPillClassName =
   "inline-flex min-h-0 items-center justify-center gap-1.5 rounded-full bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-900 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 md:gap-2 md:px-4 md:py-3 md:text-sm dark:bg-white/7 dark:text-white dark:hover:bg-white/10";
 
+const isPendingTradeTransaction = (transaction: {
+  status: string;
+  type: string;
+}) => {
+  const normalizedStatus = String(transaction.status || "").toLowerCase();
+  return (
+    ["support", "sell"].includes(
+      String(transaction.type || "").toLowerCase()
+    ) && ["initiated", "pending", "processing"].includes(normalizedStatus)
+  );
+};
+
 const FiatWalletPanel = () => {
   const { user } = usePrivy();
   const { profile } = useEvery1Store();
   const { currentAccount } = useAccountStore();
   const queryClient = useQueryClient();
-  const {
-    identityWalletAddress,
-    identityWalletClient
-  } = useEvery1ExecutionWallet({ autoPrepare: true });
+  const { identityWalletAddress, identityWalletClient } =
+    useEvery1ExecutionWallet();
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
-  const [showDepositCheckout, setShowDepositCheckout] = useState(false);
-  const [depositCheckoutUrl, setDepositCheckoutUrl] = useState<null | string>(
-    null
-  );
   const [depositCheckoutLoading, setDepositCheckoutLoading] = useState(false);
-  const depositCheckoutFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const [depositVirtualAccount, setDepositVirtualAccount] = useState<
+    FiatDepositInitiateResponse["virtualAccount"] | null
+  >(null);
+  const [showDepositVirtualAccount, setShowDepositVirtualAccount] =
+    useState(false);
+  const [depositRefreshStartedAt, setDepositRefreshStartedAt] = useState<
+    null | string
+  >(null);
+  const [depositRefreshStatus, setDepositRefreshStatus] = useState<
+    "failed" | "idle" | "processing" | "settled" | "waiting"
+  >("idle");
+  const depositRefreshTimeoutsRef = useRef<number[]>([]);
   const [depositAmount, setDepositAmount] = useState("1000");
   const [depositEmail, setDepositEmail] = useState(user?.email?.address || "");
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -151,18 +172,42 @@ const FiatWalletPanel = () => {
   });
 
   const transactionsQuery = useQuery({
-    enabled:
-      authReady &&
-      walletAccessRequested &&
-      showHistory &&
-      Boolean(walletQuery.data?.wallet),
+    enabled: Boolean(profile?.id) && showHistory,
     queryFn: async () =>
-      await getFiatWalletTransactions({
-        limit: 8,
-        ...getAuthenticatedRequestContext()
-      }),
-    queryKey: ["fiat-wallet-transactions", profile?.id || null, walletAddress]
+      await getFiatWalletTransactionsPublic(profile?.id || "", 8),
+    queryKey: ["fiat-wallet-transactions-public", profile?.id || null, 8]
   });
+
+  const refreshWalletViews = async () => {
+    await Promise.all([
+      publicWalletQuery.refetch(),
+      authReady && walletAccessRequested
+        ? walletQuery.refetch()
+        : Promise.resolve(null),
+      showHistory ? transactionsQuery.refetch() : Promise.resolve(null),
+      profile?.id
+        ? queryClient.invalidateQueries({
+            queryKey: ["fiat-wallet-transactions-public", profile.id]
+          })
+        : Promise.resolve(null)
+    ]);
+  };
+  const clearDepositRefreshTimeouts = () => {
+    for (const timeoutId of depositRefreshTimeoutsRef.current) {
+      window.clearTimeout(timeoutId);
+    }
+    depositRefreshTimeoutsRef.current = [];
+  };
+  const scheduleDepositRefresh = () => {
+    clearDepositRefreshTimeouts();
+
+    depositRefreshTimeoutsRef.current = [500, 3_000, 8_000, 15_000].map(
+      (delay) =>
+        window.setTimeout(() => {
+          void refreshWalletViews();
+        }, delay)
+    );
+  };
 
   const depositMutation = useMutation({
     mutationFn: async () => {
@@ -193,27 +238,80 @@ const FiatWalletPanel = () => {
     },
     onSuccess: (response) => {
       toast.success(response.message);
-      setShowDepositForm(false);
-      void publicWalletQuery.refetch();
+      void refreshWalletViews();
 
-      if (authReady && walletAccessRequested) {
-        void walletQuery.refetch();
-      }
-
-      if (profile?.id) {
-        void queryClient.invalidateQueries({
-          queryKey: ["fiat-wallet-transactions-public", profile.id]
-        });
-      }
-
-      if (response.transaction.checkoutUrl) {
-        setDepositCheckoutUrl(response.transaction.checkoutUrl);
-        setDepositCheckoutLoading(true);
-        setShowDepositCheckout(true);
+      if (response.virtualAccount) {
+        setDepositCheckoutLoading(false);
+        cngnDepositRefreshMutation.reset();
+        setDepositVirtualAccount(response.virtualAccount);
+        setDepositRefreshStartedAt(new Date().toISOString());
+        setDepositRefreshStatus("waiting");
+        setShowDepositVirtualAccount(true);
         return;
       }
 
-      toast.error("Flutterwave checkout is not available for this deposit.");
+      if (response.checkout?.mode === "inline" && response.checkout.publicKey) {
+        setDepositVirtualAccount(null);
+        setShowDepositVirtualAccount(false);
+        setDepositCheckoutLoading(true);
+        void openFlutterwaveCheckout({
+          amountNaira: response.checkout.amountNaira,
+          customer: {
+            email: response.checkout.customer.email || depositEmail.trim(),
+            name:
+              response.checkout.customer.name ||
+              getPrivyDisplayName(user) ||
+              profile?.displayName ||
+              "Every1 user",
+            phoneNumber: response.checkout.customer.phoneNumber || null
+          },
+          customizations: {
+            description: "Fund your Every1 wallet",
+            title: "Every1 wallet deposit"
+          },
+          onClose: () => {
+            setDepositCheckoutLoading(false);
+            scheduleDepositRefresh();
+          },
+          onSuccess: () => {
+            setDepositCheckoutLoading(false);
+            setShowDepositForm(false);
+            toast.success("Payment submitted. We're updating your wallet.");
+            scheduleDepositRefresh();
+          },
+          publicKey: response.checkout.publicKey,
+          redirectUrl: response.checkout.redirectUrl,
+          txRef: response.checkout.txRef
+        }).catch((error) => {
+          setDepositCheckoutLoading(false);
+          logActionError("wallet.deposit.inline_checkout", error, {
+            profileId: profile?.id || null,
+            provider: response.transaction.provider,
+            txRef:
+              response.checkout?.txRef || response.transaction.checkoutReference
+          });
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : "Unable to open Flutterwave checkout right now."
+          );
+        });
+        return;
+      }
+
+      if (response.transaction.checkoutUrl) {
+        window.open(
+          response.transaction.checkoutUrl,
+          "_blank",
+          "noopener,noreferrer"
+        );
+        setShowDepositForm(false);
+        scheduleDepositRefresh();
+        return;
+      }
+
+      setDepositCheckoutLoading(false);
+      toast.error("Deposit instructions are not available for this deposit.");
     }
   });
 
@@ -264,6 +362,94 @@ const FiatWalletPanel = () => {
     }
   });
 
+  const cngnDepositRefreshMutation = useMutation({
+    mutationFn: async ({ silent = false }: { silent?: boolean } = {}) => {
+      if (!profile?.id) {
+        throw new Error("Sign in to continue.");
+      }
+
+      const result = await reconcileFiatCngnDepositsPublic(profile.id);
+      await refreshWalletViews();
+
+      return {
+        ...result,
+        silent
+      };
+    },
+    onError: (error, variables) => {
+      if (variables?.silent) {
+        return;
+      }
+
+      logActionError("wallet.cngn_deposit_refresh", error, {
+        profileId: profile?.id || null,
+        walletAddress
+      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to refresh this deposit right now."
+      );
+    },
+    onSuccess: (result) => {
+      if (result.sync.succeeded > 0) {
+        setDepositRefreshStatus("settled");
+        toast.success("Deposit completed and added to your wallet.");
+        closeDepositVirtualAccount();
+        return;
+      }
+
+      if (result.sync.failed > 0) {
+        setDepositRefreshStatus("failed");
+        if (!result.silent) {
+          toast.error("We found a failed deposit update. Please try again.");
+        }
+        return;
+      }
+
+      if (result.sync.processing > 0) {
+        setDepositRefreshStatus("processing");
+        if (!result.silent) {
+          toast.message(
+            "Deposit detected. Final confirmation is still in progress."
+          );
+        }
+        return;
+      }
+
+      setDepositRefreshStatus("waiting");
+      if (!result.silent) {
+        toast.message("No new deposit update yet.");
+      }
+    }
+  });
+  const tradeRefreshMutation = useMutation({
+    mutationFn: async () => {
+      if (!profile?.id) {
+        throw new Error("Sign in to continue.");
+      }
+
+      const result = await reconcileFiatTradesPublic(profile.id);
+      await refreshWalletViews();
+
+      return result;
+    },
+    onError: (error) => {
+      logActionError("wallet.trade_refresh", error, {
+        profileId: profile?.id || null,
+        walletAddress
+      });
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to refresh pending trades right now."
+      );
+    },
+    onSuccess: (result) => {
+      toast.message(result.message);
+    }
+  });
+
   useEffect(() => {
     setCachedWalletEntry(readFiatWalletCache(profile?.id || null));
   }, [profile?.id]);
@@ -286,6 +472,9 @@ const FiatWalletPanel = () => {
     publicWalletQuery.data?.wallet ||
     cachedWalletEntry?.wallet ||
     null;
+  const walletProviders =
+    walletQuery.data?.providers || publicWalletQuery.data?.providers || null;
+  const paymentConfigured = Boolean(walletProviders?.paymentConfigured);
   const banks = walletQuery.data?.banks || [];
   const activeWalletError = walletQuery.error || publicWalletQuery.error;
   const shouldShowWalletError = Boolean(activeWalletError) && !wallet;
@@ -299,7 +488,7 @@ const FiatWalletPanel = () => {
   const pendingLabel = hasWalletData
     ? formatNaira(wallet?.pendingBalance ?? 0)
     : "—";
-  const lockedLabel = hasWalletData
+  const _lockedLabel = hasWalletData
     ? formatNaira(wallet?.lockedBalance ?? 0)
     : "—";
   const balanceDisplayLabel = hasWalletData ? balanceLabel : "\u20a6--";
@@ -312,10 +501,22 @@ const FiatWalletPanel = () => {
   const pendingPercentLabel = hasWalletData
     ? formatPercent(Math.max(pendingPercent, 0))
     : "--";
-  const lockedDisplayLabel = hasWalletData ? lockedLabel : "--";
+  const _lockedDisplayLabel = hasWalletData ? _lockedLabel : "--";
   const usdEquivalentLabel = hasWalletData
     ? `(${formatUsd((wallet?.availableBalance ?? 0) / USD_TO_NGN_RATE)})`
     : null;
+  const depositReadinessMessage = paymentConfigured
+    ? null
+    : walletProviders?.rails?.cngn
+      ? "cNGN virtual account deposits aren't ready yet. Add the cNGN merchant private key to enable deposits."
+      : "Deposits aren't configured yet.";
+  const closeDepositVirtualAccount = () => {
+    setShowDepositVirtualAccount(false);
+    setDepositVirtualAccount(null);
+    setDepositRefreshStartedAt(null);
+    setDepositRefreshStatus("idle");
+    cngnDepositRefreshMutation.reset();
+  };
   const openDepositForm = () => {
     setDepositEmail(
       (currentValue) => currentValue || user?.email?.address || ""
@@ -329,10 +530,22 @@ const FiatWalletPanel = () => {
     setSelectedBankId(defaultBankId);
     setShowWithdrawModal(true);
   };
+  const pendingTradeCount = useMemo(
+    () =>
+      (transactionsQuery.data?.transactions || []).filter(
+        isPendingTradeTransaction
+      ).length,
+    [transactionsQuery.data?.transactions]
+  );
   const ensureWalletAccess = (action: "deposit" | "withdraw") => {
     if (action === "deposit") {
       if (!profileReady) {
         toast.error("Sign in to add funds.");
+        return;
+      }
+
+      if (!paymentConfigured) {
+        toast.error(depositReadinessMessage || "Deposits aren't ready yet.");
         return;
       }
 
@@ -346,11 +559,7 @@ const FiatWalletPanel = () => {
     }
 
     if (walletQuery.data?.wallet) {
-      if (action === "deposit") {
-        openDepositForm();
-      } else {
-        openWithdrawModal();
-      }
+      openWithdrawModal();
       return;
     }
 
@@ -382,13 +591,13 @@ const FiatWalletPanel = () => {
   }, [pendingAction, walletQuery.error]);
 
   const submitDeposit = () => {
-    if (!Number.isFinite(Number(depositAmount)) || Number(depositAmount) <= 0) {
-      toast.error("Enter a valid deposit amount.");
+    if (!paymentConfigured) {
+      toast.error(depositReadinessMessage || "Deposits aren't ready yet.");
       return;
     }
 
-    if (!depositEmail.trim()) {
-      toast.error("Add an email for this deposit.");
+    if (!Number.isFinite(Number(depositAmount)) || Number(depositAmount) <= 0) {
+      toast.error("Enter a valid deposit amount.");
       return;
     }
 
@@ -396,69 +605,36 @@ const FiatWalletPanel = () => {
   };
 
   useEffect(() => {
-    if (depositCheckoutUrl) {
-      setDepositCheckoutLoading(true);
-    }
-  }, [depositCheckoutUrl]);
-
-  const closeDepositCheckout = (status?: string) => {
-    setShowDepositCheckout(false);
-    setDepositCheckoutUrl(null);
-    setDepositCheckoutLoading(false);
-
-    void publicWalletQuery.refetch();
-
-    if (authReady && walletAccessRequested) {
-      void walletQuery.refetch();
+    if (!showDepositVirtualAccount || !profile?.id) {
+      return;
     }
 
-    if (profile?.id) {
-      void queryClient.invalidateQueries({
-        queryKey: ["fiat-wallet-transactions-public", profile.id]
+    const interval = window.setInterval(() => {
+      if (cngnDepositRefreshMutation.isPending) {
+        return;
+      }
+
+      cngnDepositRefreshMutation.mutate({
+        silent: true
       });
-    }
+    }, 15_000);
 
-    if (showHistory) {
-      void transactionsQuery.refetch();
-    }
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [
+    cngnDepositRefreshMutation,
+    cngnDepositRefreshMutation.isPending,
+    profile?.id,
+    showDepositVirtualAccount
+  ]);
 
-    if (status && ["cancelled", "failed"].includes(status.toLowerCase())) {
-      toast.error("Deposit was not completed.");
-    }
-  };
-
-  const handleDepositCheckoutLoad = () => {
-    setDepositCheckoutLoading(false);
-
-    const iframe = depositCheckoutFrameRef.current;
-
-    if (!iframe) {
-      return;
-    }
-
-    try {
-      const href = iframe.contentWindow?.location.href;
-
-      if (!href) {
-        return;
-      }
-
-      const url = new URL(href);
-
-      if (url.origin !== window.location.origin) {
-        return;
-      }
-
-      const statusParam =
-        url.searchParams.get("status") ||
-        url.searchParams.get("payment_status") ||
-        url.searchParams.get("transaction_status");
-
-      closeDepositCheckout(statusParam || undefined);
-    } catch {
-      return;
-    }
-  };
+  useEffect(
+    () => () => {
+      clearDepositRefreshTimeouts();
+    },
+    []
+  );
 
   const submitWithdraw = () => {
     if (
@@ -483,7 +659,7 @@ const FiatWalletPanel = () => {
   return (
     <>
       <section className="mb-4 overflow-hidden rounded-[1.6rem] border border-gray-200/70 bg-white text-gray-900 dark:border-gray-800/75 dark:bg-black dark:text-white">
-        <div className="px-3.5 pb-4 pt-5 md:px-5 md:py-5">
+        <div className="px-3.5 pt-5 pb-4 md:px-5 md:py-5">
           {profileReady ? (
             shouldShowWalletError ? (
               <div className="space-y-3">
@@ -523,14 +699,10 @@ const FiatWalletPanel = () => {
                     ) : null}
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <span
-                      className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 md:px-2.5 md:py-1 md:text-[11px] dark:bg-white/8 dark:text-white/72"
-                    >
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 md:px-2.5 md:py-1 md:text-[11px] dark:bg-white/8 dark:text-white/72">
                       {pendingPercentLabel}
                     </span>
-                    <span
-                      className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 md:px-2.5 md:py-1 md:text-[11px] dark:bg-white/8 dark:text-white/72"
-                    >
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 md:px-2.5 md:py-1 md:text-[11px] dark:bg-white/8 dark:text-white/72">
                       Pending {pendingDisplayLabel}
                     </span>
                   </div>
@@ -561,6 +733,11 @@ const FiatWalletPanel = () => {
 
                 {showDepositForm ? (
                   <div className="mt-3 rounded-[1rem] bg-gray-50 p-3 dark:bg-[#181a20]">
+                    {depositReadinessMessage ? (
+                      <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+                        {depositReadinessMessage}
+                      </p>
+                    ) : null}
                     <div className="grid gap-2 md:grid-cols-[1fr,1.2fr,auto] md:items-end">
                       <label className="block">
                         <span className="text-[11px] text-gray-500 dark:text-gray-400">
@@ -569,7 +746,9 @@ const FiatWalletPanel = () => {
                         <input
                           className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-gray-300 dark:border-white/10 dark:bg-[#111111] dark:focus:border-white/20"
                           inputMode="decimal"
-                          onChange={(event) => setDepositAmount(event.target.value)}
+                          onChange={(event) =>
+                            setDepositAmount(event.target.value)
+                          }
                           value={depositAmount}
                         />
                       </label>
@@ -579,18 +758,28 @@ const FiatWalletPanel = () => {
                         </span>
                         <input
                           className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-gray-300 dark:border-white/10 dark:bg-[#111111] dark:focus:border-white/20"
-                          onChange={(event) => setDepositEmail(event.target.value)}
+                          onChange={(event) =>
+                            setDepositEmail(event.target.value)
+                          }
                           type="email"
                           value={depositEmail}
                         />
                       </label>
                       <button
-                        className="h-10 rounded-xl bg-gray-950 px-4 text-sm font-semibold text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-[#111111] dark:hover:bg-white/90"
-                        disabled={depositMutation.isPending}
+                        className="h-10 rounded-xl bg-gray-950 px-4 font-semibold text-sm text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-[#111111] dark:hover:bg-white/90"
+                        disabled={
+                          !paymentConfigured ||
+                          depositMutation.isPending ||
+                          depositCheckoutLoading
+                        }
                         onClick={submitDeposit}
                         type="button"
                       >
-                        {depositMutation.isPending ? "Starting..." : "Continue"}
+                        {depositMutation.isPending
+                          ? "Starting..."
+                          : depositCheckoutLoading
+                            ? "Opening..."
+                            : "Continue"}
                       </button>
                     </div>
                     <button
@@ -605,30 +794,10 @@ const FiatWalletPanel = () => {
               </>
             )
           ) : (
-            <div className="rounded-[1.2rem] border border-gray-200/80 border-dashed px-4 py-4 text-sm text-gray-600 dark:border-white/10 dark:text-white/68">
+            <div className="rounded-[1.2rem] border border-gray-200/80 border-dashed px-4 py-4 text-gray-600 text-sm dark:border-white/10 dark:text-white/68">
               Sign in to view your Naira wallet.
             </div>
           )}
-
-          {authReady && walletQuery.data?.wallet ? (
-            <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-gray-500 dark:text-white/58">
-              <span>
-                {banks.length
-                  ? `${banks.length} bank${banks.length === 1 ? "" : "s"} linked`
-                  : "No saved banks yet"}
-              </span>
-              <button
-                className="rounded-full bg-gray-100 px-3 py-1.5 font-semibold text-gray-800 transition hover:bg-gray-200 dark:bg-white/7 dark:text-white/76 dark:hover:bg-white/10"
-                onClick={() => {
-                  setShowHistory(true);
-                  void transactionsQuery.refetch();
-                }}
-                type="button"
-              >
-                {showHistory ? "Refresh" : "History"}
-              </button>
-            </div>
-          ) : null}
         </div>
       </section>
 
@@ -740,32 +909,78 @@ const FiatWalletPanel = () => {
       </Modal>
 
       <Modal
-        onClose={() => closeDepositCheckout()}
-        show={showDepositCheckout}
+        onClose={closeDepositVirtualAccount}
+        show={showDepositVirtualAccount}
         size="sm"
+        title="Complete deposit"
       >
-        <div className="bg-white p-0 text-gray-900 dark:bg-[#111111] dark:text-white">
-          <div className="relative h-[480px] max-h-[70vh] overflow-hidden">
-            {depositCheckoutLoading ? (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
-                <Loader />
-                <span className="text-xs">Loading Flutterwave checkout…</span>
+        <div className="space-y-3 bg-white p-4 text-gray-900 dark:bg-[#111111] dark:text-white">
+          {depositVirtualAccount ? (
+            <>
+              <p className="text-gray-500 text-sm dark:text-gray-400">
+                Transfer your deposit to this account to fund your Every1
+                wallet.
+              </p>
+              <div className="rounded-[1rem] bg-gray-50 px-4 py-3 dark:bg-[#181a20]">
+                <p className="text-gray-500 text-xs uppercase tracking-[0.16em] dark:text-gray-400">
+                  Account number
+                </p>
+                <p className="mt-1 font-semibold text-2xl tracking-[0.08em]">
+                  {depositVirtualAccount.accountNumber || "--"}
+                </p>
               </div>
-            ) : null}
-            {depositCheckoutUrl ? (
-              <iframe
-                className="h-full w-full"
-                onLoad={handleDepositCheckoutLoad}
-                ref={depositCheckoutFrameRef}
-                src={depositCheckoutUrl}
-                title="Flutterwave checkout"
-              />
-            ) : (
-              <div className="p-6 text-sm text-gray-500 dark:text-gray-400">
-                Checkout link unavailable.
+              <div className="rounded-[1rem] bg-gray-50 px-4 py-3 dark:bg-[#181a20]">
+                <p className="text-gray-500 text-xs uppercase tracking-[0.16em] dark:text-gray-400">
+                  Reference
+                </p>
+                <p className="mt-1 break-all font-medium text-sm">
+                  {depositVirtualAccount.accountReference || "--"}
+                </p>
               </div>
-            )}
-          </div>
+              <div className="rounded-[1rem] bg-gray-50 px-4 py-3 dark:bg-[#181a20]">
+                <p className="text-gray-500 text-xs dark:text-gray-400">
+                  We'll refresh this deposit automatically after you transfer.
+                </p>
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-500">
+                  {depositRefreshStartedAt
+                    ? `Auto-checking since ${formatRelativeDate(depositRefreshStartedAt)}`
+                    : "Auto-checking is ready."}
+                </p>
+                <p className="mt-1 text-[11px] text-gray-700 dark:text-gray-200">
+                  {depositRefreshStatus === "processing"
+                    ? "Deposit detected. Final confirmation is still in progress."
+                    : depositRefreshStatus === "settled"
+                      ? "Deposit completed."
+                      : depositRefreshStatus === "failed"
+                        ? "We found a failed deposit update. Please try again."
+                        : "Waiting for your transfer to arrive."}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  className="flex-1 rounded-2xl bg-gray-950 px-4 py-3 font-semibold text-sm text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-[#111111] dark:hover:bg-white/90"
+                  disabled={cngnDepositRefreshMutation.isPending}
+                  onClick={() => {
+                    cngnDepositRefreshMutation.mutate({
+                      silent: false
+                    });
+                  }}
+                  type="button"
+                >
+                  {cngnDepositRefreshMutation.isPending
+                    ? "Checking..."
+                    : "I've paid"}
+                </button>
+                <button
+                  className="rounded-2xl border border-gray-200 px-4 py-3 font-semibold text-gray-700 text-sm transition hover:bg-gray-50 dark:border-white/10 dark:text-white dark:hover:bg-white/5"
+                  onClick={closeDepositVirtualAccount}
+                  type="button"
+                >
+                  Done
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
       </Modal>
 
@@ -776,6 +991,20 @@ const FiatWalletPanel = () => {
         title="Naira history"
       >
         <div className="space-y-3 bg-white p-4 text-gray-900 dark:bg-[#111111] dark:text-white">
+          {pendingTradeCount > 0 ? (
+            <div className="flex items-center justify-end">
+              <button
+                className="rounded-full bg-gray-100 px-3 py-1.5 font-semibold text-[11px] text-gray-700 transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/8 dark:text-white/80 dark:hover:bg-white/12"
+                disabled={tradeRefreshMutation.isPending}
+                onClick={() => tradeRefreshMutation.mutate()}
+                type="button"
+              >
+                {tradeRefreshMutation.isPending
+                  ? "Refreshing..."
+                  : "Refresh pending"}
+              </button>
+            </div>
+          ) : null}
           {transactionsQuery.isLoading ? (
             <Loader className="my-8" />
           ) : transactionsQuery.error ? (

@@ -27,13 +27,29 @@ const resolveCoinIdentifier = (body) =>
   body.ticker ||
   null;
 
+const mapWalletSummary = (wallet) => ({
+  availableBalance: asMoney(wallet.available_balance_kobo),
+  availableBalanceKobo: wallet.available_balance_kobo,
+  currency: wallet.currency,
+  id: wallet.wallet_id,
+  lastTransactionAt: wallet.last_transaction_at,
+  lockedBalance: asMoney(wallet.locked_balance_kobo),
+  lockedBalanceKobo: wallet.locked_balance_kobo,
+  pendingBalance: asMoney(wallet.pending_balance_kobo),
+  pendingBalanceKobo: wallet.pending_balance_kobo,
+  profileId: wallet.profile_id,
+  totalBalance: asMoney(wallet.total_balance_kobo),
+  totalBalanceKobo: wallet.total_balance_kobo
+});
+
 export const createSellService = ({
   creatorService,
   executionEnabled = false,
   publicClient = null,
   settlementService = null,
   sellFeeBps = 250,
-  supabase
+  supabase,
+  walletService = null
 }) => {
   const resolveExecutionWalletAddress = (profile, body = null) => {
     const requestedExecutionWalletAddress = String(
@@ -52,12 +68,35 @@ export const createSellService = ({
     return profile?.execution_wallet_address || profile?.wallet_address || null;
   };
 
+  const getFundingState = async ({ profileId, syncDeposits = true }) => {
+    if (walletService?.getTradeFundingState) {
+      return await walletService.getTradeFundingState({
+        profileId,
+        syncDeposits
+      });
+    }
+
+    const wallet = await getWalletOverviewRow({
+      profileId,
+      supabase
+    });
+
+    return {
+      funding: null,
+      wallet
+    };
+  };
+
   const buildExecutionPayload = ({ transaction, wallet }) => ({
+    funding: null,
     message:
       transaction.status === "completed"
         ? "Your sell completed successfully and your Naira wallet has been credited."
-        : "Your sell request is processing. We are finalizing your Naira wallet credit.",
+        : transaction.status === "failed"
+          ? "This sell request could not be completed. No Naira credit was applied."
+          : "Your sell request is processing. We are finalizing your Naira wallet credit.",
     new_naira_balance: asMoney(wallet.available_balance_kobo),
+    refreshAfterMs: transaction.status === "processing" ? 5000 : undefined,
     sell: {
       coinAddress: transaction.coin_address,
       coinAmount: Number(
@@ -84,25 +123,65 @@ export const createSellService = ({
         transaction.metadata?.transferAmountLabel || undefined,
       transferAmountRaw: transaction.metadata?.transferAmountRaw || undefined
     },
+    shouldPoll: transaction.status === "processing",
     status: transaction.status,
     success: true,
     wallet: {
-      availableBalance: asMoney(wallet.available_balance_kobo),
-      availableBalanceKobo: wallet.available_balance_kobo,
-      currency: wallet.currency,
-      id: wallet.wallet_id,
-      lastTransactionAt: wallet.last_transaction_at,
-      lockedBalance: asMoney(wallet.locked_balance_kobo),
-      lockedBalanceKobo: wallet.locked_balance_kobo,
-      pendingBalance: asMoney(wallet.pending_balance_kobo),
-      pendingBalanceKobo: wallet.pending_balance_kobo,
-      profileId: wallet.profile_id,
-      totalBalance: asMoney(wallet.total_balance_kobo),
-      totalBalanceKobo: wallet.total_balance_kobo
+      ...mapWalletSummary(wallet)
     }
   });
 
+  const getTransactionStatus = async ({ profile, transactionId }) => {
+    assert(transactionId, "transactionId is required.");
+
+    const { data: transaction, error: transactionError } = await supabase
+      .from("sell_transactions")
+      .select("*")
+      .eq("id", transactionId)
+      .eq("profile_id", profile.id)
+      .maybeSingle();
+
+    if (transactionError) {
+      throw transactionError;
+    }
+
+    assert(transaction, "Sell transaction was not found.", 404);
+
+    const settlementResult =
+      transaction.status === "processing" &&
+      settlementService?.isEnabled?.() &&
+      (transaction.metadata?.transferTxHash || transaction.zora_trade_hash)
+        ? await settlementService.settleSellTransaction({
+            profile,
+            transaction,
+            transactionHash:
+              transaction.metadata?.transferTxHash ||
+              transaction.zora_trade_hash
+          })
+        : null;
+    const fundingState = await getFundingState({
+      profileId: profile.id,
+      syncDeposits: false
+    });
+    const wallet = settlementResult?.wallet || fundingState.wallet;
+    const payload = buildExecutionPayload({
+      transaction: settlementResult?.transaction || transaction,
+      wallet
+    });
+
+    return {
+      payload: {
+        ...payload,
+        funding: fundingState.funding
+      },
+      statusCode: 200
+    };
+  };
+
   const quote = async ({ body, profileId }) => {
+    const fundingState = await getFundingState({
+      profileId
+    });
     const coinAmount = toCoinAmount(body.coinAmount);
     assert(coinAmount, "A valid creator coin amount is required.");
     assert(publicClient, "Sell quote is not configured on this server.", 503);
@@ -196,6 +275,7 @@ export const createSellService = ({
       estimated_naira_return: asMoney(netReturnKobo),
       expires_at: expiresAt,
       fee_naira: asMoney(feeKobo),
+      funding: fundingState.funding,
       gross_naira_return: asMoney(grossReturnKobo),
       quote_id: data.id,
       settlement: {
@@ -208,7 +288,8 @@ export const createSellService = ({
           coinAmount.toString(),
           Number(decimals)
         ).toString()
-      }
+      },
+      wallet: mapWalletSummary(fundingState.wallet)
     };
 
     await saveIdempotencyRecord({
@@ -282,16 +363,16 @@ export const createSellService = ({
               transactionHash: body.transactionHash
             })
           : null;
-      const wallet =
-        settlementResult?.wallet ||
-        (await getWalletOverviewRow({
-          profileId,
-          supabase
-        }));
+      const fundingState = await getFundingState({
+        profileId,
+        syncDeposits: false
+      });
+      const wallet = settlementResult?.wallet || fundingState.wallet;
       const payload = buildExecutionPayload({
         transaction: settlementResult?.transaction || existingTransaction,
         wallet
       });
+      payload.funding = fundingState.funding;
 
       await saveIdempotencyRecord({
         key: idempotencyKey,
@@ -342,7 +423,7 @@ export const createSellService = ({
       409
     );
 
-    const [decimals, balanceRaw, wallet] = await Promise.all([
+    const [decimals, balanceRaw, fundingState] = await Promise.all([
       publicClient.readContract({
         abi: erc20Abi,
         address: quote.coin_address,
@@ -354,11 +435,11 @@ export const createSellService = ({
         args: [executionWalletAddress],
         functionName: "balanceOf"
       }),
-      getWalletOverviewRow({
-        profileId,
-        supabase
+      getFundingState({
+        profileId
       })
     ]);
+    const wallet = fundingState.wallet;
     const requestedAmount = parseUnits(
       quote.coin_amount_raw || String(quote.coin_amount),
       Number(decimals)
@@ -469,6 +550,7 @@ export const createSellService = ({
       transaction: settlementResult.transaction,
       wallet: settlementResult.wallet
     });
+    payload.funding = fundingState.funding;
 
     await saveIdempotencyRecord({
       key: idempotencyKey,
@@ -487,6 +569,7 @@ export const createSellService = ({
 
   return {
     execute,
+    getTransactionStatus,
     quote
   };
 };

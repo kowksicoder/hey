@@ -103,6 +103,7 @@ export const createFlutterwaveClient = (config) => ({
       reference: payload?.data?.reference || reference
     };
   },
+  getPublicKey: () => config.flutterwavePublicKey || null,
   getTransfer: async ({ transferId }) => {
     assert(
       config.flutterwaveSecretKey,
@@ -128,6 +129,7 @@ export const createFlutterwaveClient = (config) => ({
       raw: payload
     };
   },
+  isInlineReady: () => Boolean(config.flutterwavePublicKey),
   verifyTransactionByReference: async ({ txRef }) => {
     assert(
       config.flutterwaveSecretKey,

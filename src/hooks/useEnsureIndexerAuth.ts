@@ -18,10 +18,12 @@ let authAttemptInFlight: null | Promise<boolean> = null;
 let authAttemptKeyInFlight: null | string = null;
 
 interface UseEnsureIndexerAuthOptions {
+  autoAuthenticate?: boolean;
   enabled?: boolean;
 }
 
 const useEnsureIndexerAuth = ({
+  autoAuthenticate = false,
   enabled = false
 }: UseEnsureIndexerAuthOptions = {}) => {
   const hasPrivy = hasPrivyConfig();
@@ -189,6 +191,7 @@ const useEnsureIndexerAuth = ({
 
   useEffect(() => {
     if (
+      !autoAuthenticate ||
       !shouldAuthenticate ||
       !authAttemptKey ||
       !accountAddress ||
@@ -205,6 +208,7 @@ const useEnsureIndexerAuth = ({
     void authenticateIndexer({ force: false });
   }, [
     accountAddress,
+    autoAuthenticate,
     authAttemptKey,
     authenticateIndexer,
     shouldAuthenticate,

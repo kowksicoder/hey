@@ -5,7 +5,10 @@ import {
   getPublicEvery1ProfilesByWallets
 } from "@/helpers/every1";
 import formatAddress from "@/helpers/formatAddress";
-import { formatCompactNairaFromUsd } from "@/helpers/formatNaira";
+import {
+  formatCompactNairaFromUsd,
+  USD_TO_NGN_RATE
+} from "@/helpers/formatNaira";
 import nFormatter from "@/helpers/nFormatter";
 import { listPublicPlatformLaunches } from "@/helpers/platformDiscovery";
 import {
@@ -558,10 +561,33 @@ export const parseMetricNumber = (value?: number | string | null) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-export const formatUsdMetric = (value?: number | string | null, digits = 2) => {
+export const formatUsdMetric = (
+  value?: number | string | null,
+  digitsOrRate = 2,
+  usdToNgnRate?: number
+) => {
   const amount = parseMetricNumber(value);
+  let digits = 2;
+  let rate = USD_TO_NGN_RATE;
 
-  return formatCompactNairaFromUsd(amount, digits);
+  if (Number.isFinite(usdToNgnRate) && (usdToNgnRate ?? 0) > 0) {
+    rate = usdToNgnRate as number;
+    if (
+      Number.isFinite(digitsOrRate) &&
+      digitsOrRate > 0 &&
+      digitsOrRate <= 8
+    ) {
+      digits = digitsOrRate;
+    }
+  } else if (Number.isFinite(digitsOrRate)) {
+    if (digitsOrRate > 50) {
+      rate = digitsOrRate;
+    } else if (digitsOrRate > 0 && digitsOrRate <= 8) {
+      digits = digitsOrRate;
+    }
+  }
+
+  return formatCompactNairaFromUsd(amount, digits, rate);
 };
 
 export const formatCompactMetric = (

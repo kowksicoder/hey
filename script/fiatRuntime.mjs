@@ -7,8 +7,10 @@ import {
   authenticateFiatReadRequest,
   authenticateFiatRequest
 } from "./fiat/auth.mjs";
+import { createCngnClient } from "./fiat/integrations/cngn.mjs";
 import { createFlutterwaveClient } from "./fiat/integrations/flutterwave.mjs";
 import { createMarketPriceClient } from "./fiat/integrations/marketPrice.mjs";
+import { createCoinToCoinService } from "./fiat/services/coinToCoinService.mjs";
 import { createCreatorService } from "./fiat/services/creatorService.mjs";
 import { createExecutionWalletService } from "./fiat/services/executionWalletService.mjs";
 import { createSellService } from "./fiat/services/sellService.mjs";
@@ -59,10 +61,16 @@ export const createFiatRuntime = ({ rootDir }) => {
     process.env.FIAT_SELL_FEE_BPS || "250",
     10
   );
-  const executionEnabled = process.env.EVERY1_FIAT_EXECUTION_ENABLED === "true";
+  const executionEnabled =
+    process.env.EVERY1_FIAT_EXECUTION_ENABLED !== "false";
   const flutterwaveConfigured = Boolean(
     process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLUTTERWAVE_API_KEY
   );
+  const flutterwaveInlineConfigured = Boolean(
+    process.env.VITE_FLUTTERWAVE_PUBLIC_KEY ||
+      process.env.FLUTTERWAVE_PUBLIC_KEY
+  );
+  const cngnDepositRail = process.env.CNGN_DEPOSIT_RAIL || "auto";
   const baseRpcUrl =
     process.env.VITE_ZORA_RPC_URL ||
     process.env.PONDER_RPC_URL_8453 ||
@@ -94,12 +102,27 @@ export const createFiatRuntime = ({ rootDir }) => {
       : null;
 
   const flutterwave = createFlutterwaveClient({
+    flutterwavePublicKey:
+      process.env.VITE_FLUTTERWAVE_PUBLIC_KEY ||
+      process.env.FLUTTERWAVE_PUBLIC_KEY ||
+      null,
     flutterwaveSecretKey:
       process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLUTTERWAVE_API_KEY,
     flutterwaveWebhookHash:
       process.env.FLUTTERWAVE_WEBHOOK_HASH ||
       process.env.FLUTTERWAVE_WEBHOOK_SECRET_HASH ||
       null
+  });
+  const cngn = createCngnClient({
+    allowMerchantWrites: process.env.CNGN_MERCHANT_WRITE_ENABLED === "true",
+    apiBaseUrl: process.env.CNGN_API_BASE_URL || "https://api.cngn.co",
+    apiKey: process.env.CNGN_API_KEY || null,
+    privateKey:
+      process.env.CNGN_PRIVATE_KEY ||
+      process.env.CNGN_ED25519_PRIVATE_KEY ||
+      process.env.CNGN_SSH_PRIVATE_KEY ||
+      null,
+    requestEncryptionKey: process.env.CNGN_ENCRYPTION_KEY || null
   });
 
   const creatorService = runtimeEnabled
@@ -128,6 +151,12 @@ export const createFiatRuntime = ({ rootDir }) => {
   };
   const supportSettlementService = runtimeEnabled
     ? createSupportSettlementService({
+        buySettlementModel:
+          process.env.EVERY1_BUY_SETTLEMENT_MODEL || "user_backed_cngn",
+        cngn,
+        cngnBaseTokenAddress:
+          process.env.CNGN_BASE_TOKEN_ADDRESS ||
+          "0x46C85152bFe9f96829aA94755D9f915F9B10EF5F",
         executionEnabled,
         marketPriceClient,
         platformAccount,
@@ -166,9 +195,17 @@ export const createFiatRuntime = ({ rootDir }) => {
   const walletService = runtimeEnabled
     ? createWalletService({
         appOrigin: getAppOrigin(),
+        cngn,
         flutterwave,
         flutterwaveConfigured,
-        supabase
+        flutterwaveInlineConfigured,
+        preferCngnDeposits:
+          cngnDepositRail === "virtual_account" ||
+          process.env.CNGN_DEPOSIT_ENABLED === "true",
+        requireCngnDeposits: cngnDepositRail === "virtual_account",
+        sellSettlementService,
+        supabase,
+        supportSettlementService
       })
     : null;
   const executionWalletService = runtimeEnabled
@@ -183,9 +220,11 @@ export const createFiatRuntime = ({ rootDir }) => {
         executionEnabled,
         settlementService: supportSettlementService,
         supabase,
-        supportFeeBps: Number.isFinite(supportFeeBps) ? supportFeeBps : 250
+        supportFeeBps: Number.isFinite(supportFeeBps) ? supportFeeBps : 250,
+        walletService
       })
     : null;
+  const coinToCoinService = createCoinToCoinService();
 
   const sellService = runtimeEnabled
     ? createSellService({
@@ -194,7 +233,8 @@ export const createFiatRuntime = ({ rootDir }) => {
         publicClient,
         sellFeeBps: Number.isFinite(sellFeeBps) ? sellFeeBps : 250,
         settlementService: sellSettlementService,
-        supabase
+        supabase,
+        walletService
       })
     : null;
 
@@ -242,6 +282,7 @@ export const createFiatRuntime = ({ rootDir }) => {
       pathname.startsWith("/api/wallet/") ||
       pathname.startsWith("/api/support/") ||
       pathname.startsWith("/api/sell/") ||
+      pathname.startsWith("/api/swap/") ||
       pathname.startsWith("/api/telegram/") ||
       pathname.startsWith("/api/creators/") ||
       pathname.startsWith("/api/creator-coins/") ||
@@ -256,6 +297,15 @@ export const createFiatRuntime = ({ rootDir }) => {
     const creatorCoinMatch = pathname.match(/^\/api\/creator-coins\/([^/]+)$/);
     const creatorCoinActivityMatch = pathname.match(
       /^\/api\/creator-coins\/([^/]+)\/activity$/
+    );
+    const supportTransactionMatch = pathname.match(
+      /^\/api\/support\/transactions\/([^/]+)$/
+    );
+    const sellTransactionMatch = pathname.match(
+      /^\/api\/sell\/transactions\/([^/]+)$/
+    );
+    const cngnWithdrawalVerifyMatch = pathname.match(
+      /^\/api\/wallet\/providers\/cngn\/withdraw\/([^/]+)$/
     );
 
     try {
@@ -279,14 +329,124 @@ export const createFiatRuntime = ({ rootDir }) => {
       }
 
       if (request.method === "GET" && pathname === "/api/wallet") {
-        const hasSignature = Boolean(
-          request.headers["x-every1-signature"]
-        );
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
         const { profile } = hasSignature
           ? await withAuth(request)
           : await withReadAuth(request);
         const payload = await walletService.getWallet({
           profileId: profile.id
+        });
+        jsonResponse(response, 200, payload);
+        return true;
+      }
+
+      if (
+        request.method === "GET" &&
+        pathname === "/api/wallet/providers/cngn"
+      ) {
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        hasSignature ? await withAuth(request) : await withReadAuth(request);
+        const payload = await walletService.getCngnRailStatus();
+        jsonResponse(response, 200, payload);
+        return true;
+      }
+
+      if (
+        request.method === "GET" &&
+        pathname === "/api/wallet/providers/cngn/banks"
+      ) {
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        hasSignature ? await withAuth(request) : await withReadAuth(request);
+        const payload = await walletService.listCngnBanks();
+        jsonResponse(response, 200, payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/wallet/providers/cngn/virtual-account"
+      ) {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request, rawBody)
+          : await withReadAuth(request);
+        const result = await walletService.createCngnVirtualAccount({
+          body,
+          profileId: profile.id
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/wallet/providers/cngn/deposits/reconcile"
+      ) {
+        const rawBody = await readRawBody(request);
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request, rawBody)
+          : await withReadAuth(request);
+        const payload = await walletService.reconcileCngnDeposits({
+          profileId: profile.id
+        });
+        jsonResponse(response, 200, payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/wallet/trades/reconcile"
+      ) {
+        const rawBody = await readRawBody(request);
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request, rawBody)
+          : await withReadAuth(request);
+        const payload = await walletService.reconcileTrades({
+          profileId: profile.id
+        });
+        jsonResponse(response, 200, payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/wallet/providers/cngn/redeem"
+      ) {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const { profile } = await withAuth(request, rawBody);
+        const result = await walletService.redeemWithCngn({
+          body,
+          profileId: profile.id
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/wallet/providers/cngn/withdraw"
+      ) {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const { profile } = await withAuth(request, rawBody);
+        const result = await walletService.withdrawWithCngn({
+          body,
+          profileId: profile.id
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (request.method === "GET" && cngnWithdrawalVerifyMatch) {
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        hasSignature ? await withAuth(request) : await withReadAuth(request);
+        const payload = await walletService.verifyCngnWithdrawal({
+          transactionRef: decodeURIComponent(cngnWithdrawalVerifyMatch[1])
         });
         jsonResponse(response, 200, payload);
         return true;
@@ -309,9 +469,7 @@ export const createFiatRuntime = ({ rootDir }) => {
       }
 
       if (request.method === "GET" && pathname === "/api/wallet/transactions") {
-        const hasSignature = Boolean(
-          request.headers["x-every1-signature"]
-        );
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
         const { profile } = hasSignature
           ? await withAuth(request)
           : await withReadAuth(request);
@@ -329,9 +487,7 @@ export const createFiatRuntime = ({ rootDir }) => {
       ) {
         const rawBody = await readRawBody(request);
         const body = parseJsonBody(rawBody);
-        const hasSignature = Boolean(
-          request.headers["x-every1-signature"]
-        );
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
         const { profile } = hasSignature
           ? await withAuth(request, rawBody)
           : await withReadAuth(request);
@@ -358,7 +514,10 @@ export const createFiatRuntime = ({ rootDir }) => {
       if (request.method === "POST" && pathname === "/api/support/quote") {
         const rawBody = await readRawBody(request);
         const body = parseJsonBody(rawBody);
-        const { profile } = await withAuth(request, rawBody);
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request, rawBody)
+          : await withReadAuth(request);
         const result = await supportService.quote({
           body,
           profileId: profile.id
@@ -379,10 +538,61 @@ export const createFiatRuntime = ({ rootDir }) => {
         return true;
       }
 
-      if (request.method === "POST" && pathname === "/api/sell/quote") {
+      if (request.method === "GET" && supportTransactionMatch) {
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request)
+          : await withReadAuth(request);
+        const result = await supportService.getTransactionStatus({
+          profile,
+          transactionId: decodeURIComponent(supportTransactionMatch[1])
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/swap/quote/ngn-to-coin"
+      ) {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request, rawBody)
+          : await withReadAuth(request);
+        // Keep the existing support service as the execution adapter for
+        // Naira-to-coin trades until the cNGN-native swap layer replaces it.
+        const result = await supportService.quote({
+          body,
+          profileId: profile.id
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/swap/execute/ngn-to-coin"
+      ) {
         const rawBody = await readRawBody(request);
         const body = parseJsonBody(rawBody);
         const { profile } = await withAuth(request, rawBody);
+        const result = await supportService.execute({
+          body,
+          profile
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (request.method === "POST" && pathname === "/api/sell/quote") {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request, rawBody)
+          : await withReadAuth(request);
         const result = await sellService.quote({
           body,
           profileId: profile.id
@@ -399,6 +609,74 @@ export const createFiatRuntime = ({ rootDir }) => {
           body,
           profile
         });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (request.method === "GET" && sellTransactionMatch) {
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request)
+          : await withReadAuth(request);
+        const result = await sellService.getTransactionStatus({
+          profile,
+          transactionId: decodeURIComponent(sellTransactionMatch[1])
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/swap/quote/coin-to-ngn"
+      ) {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const hasSignature = Boolean(request.headers["x-every1-signature"]);
+        const { profile } = hasSignature
+          ? await withAuth(request, rawBody)
+          : await withReadAuth(request);
+        const result = await sellService.quote({
+          body,
+          profileId: profile.id
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/swap/execute/coin-to-ngn"
+      ) {
+        const rawBody = await readRawBody(request);
+        const body = parseJsonBody(rawBody);
+        const { profile } = await withAuth(request, rawBody);
+        const result = await sellService.execute({
+          body,
+          profile
+        });
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/swap/quote/coin-to-coin"
+      ) {
+        const rawBody = await readRawBody(request);
+        await withAuth(request, rawBody);
+        const result = await coinToCoinService.quote();
+        jsonResponse(response, result.statusCode, result.payload);
+        return true;
+      }
+
+      if (
+        request.method === "POST" &&
+        pathname === "/api/swap/execute/coin-to-coin"
+      ) {
+        const rawBody = await readRawBody(request);
+        await withAuth(request, rawBody);
+        const result = await coinToCoinService.execute();
         jsonResponse(response, result.statusCode, result.payload);
         return true;
       }

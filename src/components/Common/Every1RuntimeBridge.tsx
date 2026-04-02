@@ -85,6 +85,29 @@ const getNudgeBucket = (hours = 6) => {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}:${utcHourBucket}`;
 };
 
+const getSessionTimestamp = (key: string) => {
+  const storedValue = window.sessionStorage.getItem(key);
+  const parsedValue = Number(storedValue);
+
+  return Number.isFinite(parsedValue) ? parsedValue : 0;
+};
+
+const setSessionTimestamp = (key: string, value: number) => {
+  window.sessionStorage.setItem(key, String(value));
+};
+
+const getRpcErrorCode = (error: unknown) => {
+  if (!error || typeof error !== "object" || !("code" in error)) {
+    return null;
+  }
+
+  const value = (error as { code?: unknown }).code;
+  return typeof value === "string" ? value : null;
+};
+
+const isStatementTimeoutError = (error: unknown) =>
+  getRpcErrorCode(error) === "57014";
+
 const formatNudgeUsd = (value?: null | number | string) => {
   const parsed = Number.parseFloat(String(value ?? 0));
 
@@ -533,10 +556,13 @@ const Every1RuntimeBridge = () => {
       newestUnreadNotification.kind === "welcome" ||
       isSpecialEventNotification
     ) {
-      toast.success(withToastEmoji(newestUnreadNotification.title, "celebrate"), {
-        description,
-        icon: getNotificationToastIcon(newestUnreadNotification.kind)
-      });
+      toast.success(
+        withToastEmoji(newestUnreadNotification.title, "celebrate"),
+        {
+          description,
+          icon: getNotificationToastIcon(newestUnreadNotification.kind)
+        }
+      );
     } else {
       toast(withToastEmoji(newestUnreadNotification.title, "neutral"), {
         description,
@@ -561,12 +587,17 @@ const Every1RuntimeBridge = () => {
 
     const todayKey = new Date().toISOString().slice(0, 10);
     const checkKey = `${profile.id}:${todayKey}`;
+    const sessionCheckKey = `every1:runtime-streak:${checkKey}`;
 
-    if (lastStreakCheckKey.current === checkKey) {
+    if (
+      lastStreakCheckKey.current === checkKey ||
+      window.sessionStorage.getItem(sessionCheckKey) === "1"
+    ) {
       return;
     }
 
     lastStreakCheckKey.current = checkKey;
+    window.sessionStorage.setItem(sessionCheckKey, "1");
     let cancelled = false;
 
     const checkInDailyStreak = async () => {
@@ -607,6 +638,11 @@ const Every1RuntimeBridge = () => {
           })
         ]);
       } catch (error) {
+        if (isStatementTimeoutError(error)) {
+          console.warn("Skipped daily streak retry after statement timeout");
+          return;
+        }
+
         console.error("Failed to record daily streak", error);
       }
     };
@@ -841,8 +877,24 @@ const Every1RuntimeBridge = () => {
     }
 
     let cancelled = false;
+    const nudgeAttemptKey = `every1:runtime-nudge-attempt:${profile.id}`;
+    const nudgeCooldownKey = `every1:runtime-nudge-cooldown:${profile.id}`;
 
     const maybeDeliverEngagementNudge = async () => {
+      const now = Date.now();
+      const cooldownUntil = getSessionTimestamp(nudgeCooldownKey);
+      const lastAttemptAt = getSessionTimestamp(nudgeAttemptKey);
+
+      if (
+        document.visibilityState === "hidden" ||
+        cooldownUntil > now ||
+        now - lastAttemptAt < 180_000
+      ) {
+        return;
+      }
+
+      setSessionTimestamp(nudgeAttemptKey, now);
+
       try {
         const signals = await getProfileEngagementNudgeSignals(profile.id);
 
@@ -854,6 +906,10 @@ const Every1RuntimeBridge = () => {
           signals.cooldownUntil &&
           new Date(signals.cooldownUntil).getTime() > Date.now()
         ) {
+          setSessionTimestamp(
+            nudgeCooldownKey,
+            new Date(signals.cooldownUntil).getTime()
+          );
           return;
         }
 
@@ -1046,6 +1102,8 @@ const Every1RuntimeBridge = () => {
           return;
         }
 
+        setSessionTimestamp(nudgeCooldownKey, Date.now() + 45 * 60 * 1000);
+
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: [EVERY1_ENGAGEMENT_NUDGE_SIGNALS_QUERY_KEY, profile.id]
@@ -1058,6 +1116,14 @@ const Every1RuntimeBridge = () => {
           })
         ]);
       } catch (error) {
+        if (isStatementTimeoutError(error)) {
+          setSessionTimestamp(nudgeCooldownKey, Date.now() + 15 * 60 * 1000);
+          console.warn(
+            "Skipped engagement nudge retries for 15 minutes after statement timeout"
+          );
+          return;
+        }
+
         console.error("Failed to deliver engagement nudge", error);
       }
     };
