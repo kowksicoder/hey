@@ -46,6 +46,47 @@
   }
 }
 
+@keyframes every1-landing-card-bob {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes every1-landing-carousel {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(calc(-50% + (var(--landing-gap, 1rem) / 2)), 0, 0);
+  }
+}
+
+@keyframes every1-landing-carousel-reverse {
+  0% {
+    transform: translate3d(calc(-50% + (var(--landing-gap, 1rem) / 2)), 0, 0);
+  }
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes every1-landing-pill-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  33% {
+    transform: translate3d(0, -8px, 0);
+  }
+  66% {
+    transform: translate3d(4px, -4px, 0);
+  }
+}
+
 @keyframes every1-confetti-burst {
   0% {
     opacity: 0;
@@ -94,6 +135,38 @@
 
   .every1-icon-pulse {
     animation: every1-icon-pulse 2.4s ease-in-out infinite;
+  }
+
+  .landing-carousel-track {
+    animation: every1-landing-carousel var(--landing-carousel-duration, 34s)
+      linear infinite;
+    will-change: transform;
+  }
+
+  .landing-carousel-track:hover {
+    animation-play-state: paused;
+  }
+
+  .landing-marquee-left {
+    animation: every1-landing-carousel var(--landing-carousel-duration, 34s)
+      linear infinite;
+    will-change: transform;
+  }
+
+  .landing-marquee-right {
+    animation: every1-landing-carousel-reverse
+      var(--landing-carousel-duration, 34s) linear infinite;
+    will-change: transform;
+  }
+
+  .landing-marquee-left:hover,
+  .landing-marquee-right:hover {
+    animation-play-state: paused;
+  }
+
+  .landing-pill-float {
+    animation: every1-landing-pill-float 4.8s ease-in-out infinite;
+    will-change: transform;
   }
 
   .every1-confetti-piece {
@@ -336,6 +409,21 @@
     .every1-toast [data-close-button] {
       width: 20px;
       height: 20px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .landing-carousel-track {
+      animation: none;
+    }
+
+    .landing-marquee-left,
+    .landing-marquee-right {
+      animation: none;
+    }
+
+    .landing-pill-float {
+      animation: none;
     }
   }
 }

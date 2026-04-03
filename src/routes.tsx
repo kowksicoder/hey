@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import {
   BrowserRouter,
   Navigate,
   Route,
   Routes as RouterRoutes,
+  useLocation,
   useParams
 } from "react-router";
 import ViewAccount from "@/components/Account";
@@ -19,6 +21,7 @@ import { default as GroupPersonalizeSettings } from "@/components/Group/Settings
 import RulesSettings from "@/components/Group/Settings/Rules";
 import Groups from "@/components/Groups";
 import Home from "@/components/Home";
+import Landing from "@/components/Landing";
 import Leaderboard from "@/components/Leaderboard";
 import Missions from "@/components/Missions";
 import FanDropDetail from "@/components/Missions/Detail";
@@ -49,6 +52,7 @@ import Showcase from "@/components/Showcase";
 import ShowcaseDetail from "@/components/Showcase/Detail";
 import Streaks from "@/components/Streaks";
 import Swap from "@/components/Swap";
+import { getAppUrl, shouldServeMarketingLanding } from "@/helpers/hosts";
 import RewardsSettings from "./components/Settings/Rewards";
 import Staff from "./components/Staff";
 
@@ -58,83 +62,143 @@ const LegacyFanDropRedirect = () => {
   return <Navigate replace to={slug ? `/fandrop/${slug}` : "/fandrop"} />;
 };
 
+const MarketingRedirect = () => {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const target = getAppUrl(
+      `${location.pathname}${location.search}${location.hash}`
+    );
+
+    window.location.replace(target);
+  }, [location]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#f7f3ec] px-6 text-center font-medium text-black/60 text-sm">
+      Redirecting you to the Every1 app...
+    </div>
+  );
+};
+
 const Routes = () => {
+  const marketingHost = shouldServeMarketingLanding();
+
   return (
     <BrowserRouter>
       <RouterRoutes>
-        <Route element={<Create />} path="/create" />
-        <Route element={<Layout />} path="/">
-          <Route element={<Home />} index />
-          <Route element={<Navigate replace to="/" />} path="explore" />
-          <Route element={<Coin />} path="coins/:address" />
-          <Route element={<FundsSettings />} path="wallet" />
-          <Route element={<Creators />} path="creators" />
-          <Route element={<Leaderboard />} path="leaderboard" />
-          <Route element={<Showcase />} path="showcase" />
-          <Route element={<ShowcaseDetail />} path="showcase/:slug" />
-          <Route element={<Swap />} path="swap" />
-          <Route element={<Referrals />} path="referrals" />
-          <Route element={<Missions />} path="fandrop" />
-          <Route element={<FanDropDetail />} path="fandrop/:slug" />
-          <Route element={<LegacyFanDropRedirect />} path="missions" />
-          <Route element={<LegacyFanDropRedirect />} path="missions/:slug" />
-          <Route element={<Streaks />} path="streaks" />
-          <Route element={<Search />} path="search" />
-          <Route element={<Groups />} path="groups" />
-          <Route element={<Bookmarks />} path="bookmarks" />
-          <Route element={<ENS />} path="ens" />
-          <Route element={<Notification />} path="notifications" />
-          <Route element={<ViewAccount />} path=":username" />
-          <Route element={<ViewAccount />} path="account/:address" />
-          <Route element={<ViewAccount />} path="u/:username" />
-          <Route path="g/:address">
-            <Route element={<ViewGroup />} index />
-            <Route path="settings">
-              <Route element={<GroupSettings />} index />
-              <Route
-                element={<GroupPersonalizeSettings />}
-                path="personalize"
-              />
-              <Route element={<GroupMonetizeSettings />} path="monetize" />
-              <Route element={<RulesSettings />} path="rules" />
-            </Route>
-          </Route>
-          <Route path="posts/:slug">
-            <Route element={<ViewPost />} index />
-            <Route element={<ViewPost />} path="quotes" />
-          </Route>
-          <Route path="settings">
-            <Route element={<AccountSettings />} index />
+        {marketingHost ? (
+          <>
+            <Route element={<Landing />} path="/" />
+            <Route element={<Landing page="about" />} path="/about" />
+            <Route element={<Landing page="faq" />} path="/faq" />
+            <Route element={<Landing page="pricing" />} path="/pricing" />
+            <Route element={<Landing page="contact" />} path="/contact" />
+            <Route element={<MarketingRedirect />} path="*" />
+          </>
+        ) : (
+          <>
+            <Route element={<Landing />} path="/landing-preview" />
             <Route
-              element={<AccountPersonalizeSettings />}
-              path="personalize"
+              element={<Landing page="about" />}
+              path="/landing-preview/about"
             />
-            <Route element={<AccountMonetizeSettings />} path="monetize" />
-            <Route element={<CreatorCoinSettings />} path="creatorcoin" />
-            <Route element={<ProSettings />} path="pro" />
-            <Route element={<RewardsSettings />} path="rewards" />
-            <Route element={<BlockedSettings />} path="blocked" />
-            <Route element={<DeveloperSettings />} path="developer" />
-            <Route element={<Navigate replace to="/wallet" />} path="funds" />
-            <Route element={<ManagerSettings />} path="manager" />
-            <Route element={<SessionsSettings />} path="sessions" />
-            <Route element={<UsernameSettings />} path="username" />
-            <Route element={<VerificationSettings />} path="verification" />
-            <Route element={<FAQ />} path="faq" />
-          </Route>
-          <Route path="staff">
-            <Route element={<Staff />} index />
-            <Route element={<Staff />} path="fandrops" />
-            <Route element={<Staff />} path="collaborations" />
-          </Route>
-          <Route element={<Support />} path="support" />
-          <Route element={<FAQ />} path="faq" />
-          <Route element={<Terms />} path="terms" />
-          <Route element={<Privacy />} path="privacy" />
-          <Route element={<Guidelines />} path="guidelines" />
-          <Route element={<Copyright />} path="copyright" />
-          <Route element={<Custom404 />} path="*" />
-        </Route>
+            <Route
+              element={<Landing page="faq" />}
+              path="/landing-preview/faq"
+            />
+            <Route
+              element={<Landing page="pricing" />}
+              path="/landing-preview/pricing"
+            />
+            <Route
+              element={<Landing page="contact" />}
+              path="/landing-preview/contact"
+            />
+            <Route element={<Create />} path="/create" />
+            <Route element={<Layout />} path="/">
+              <Route element={<Home />} index />
+              <Route element={<Navigate replace to="/" />} path="explore" />
+              <Route element={<Coin />} path="coins/:address" />
+              <Route element={<FundsSettings />} path="wallet" />
+              <Route element={<Creators />} path="creators" />
+              <Route element={<Leaderboard />} path="leaderboard" />
+              <Route element={<Showcase />} path="showcase" />
+              <Route element={<ShowcaseDetail />} path="showcase/:slug" />
+              <Route element={<Swap />} path="swap" />
+              <Route element={<Referrals />} path="referrals" />
+              <Route element={<Missions />} path="fandrop" />
+              <Route element={<FanDropDetail />} path="fandrop/:slug" />
+              <Route element={<LegacyFanDropRedirect />} path="missions" />
+              <Route
+                element={<LegacyFanDropRedirect />}
+                path="missions/:slug"
+              />
+              <Route element={<Streaks />} path="streaks" />
+              <Route element={<Search />} path="search" />
+              <Route element={<Groups />} path="groups" />
+              <Route element={<Bookmarks />} path="bookmarks" />
+              <Route element={<ENS />} path="ens" />
+              <Route element={<Notification />} path="notifications" />
+              <Route element={<ViewAccount />} path=":username" />
+              <Route element={<ViewAccount />} path="account/:address" />
+              <Route element={<ViewAccount />} path="u/:username" />
+              <Route path="g/:address">
+                <Route element={<ViewGroup />} index />
+                <Route path="settings">
+                  <Route element={<GroupSettings />} index />
+                  <Route
+                    element={<GroupPersonalizeSettings />}
+                    path="personalize"
+                  />
+                  <Route element={<GroupMonetizeSettings />} path="monetize" />
+                  <Route element={<RulesSettings />} path="rules" />
+                </Route>
+              </Route>
+              <Route path="posts/:slug">
+                <Route element={<ViewPost />} index />
+                <Route element={<ViewPost />} path="quotes" />
+              </Route>
+              <Route path="settings">
+                <Route element={<AccountSettings />} index />
+                <Route
+                  element={<AccountPersonalizeSettings />}
+                  path="personalize"
+                />
+                <Route element={<AccountMonetizeSettings />} path="monetize" />
+                <Route element={<CreatorCoinSettings />} path="creatorcoin" />
+                <Route element={<ProSettings />} path="pro" />
+                <Route element={<RewardsSettings />} path="rewards" />
+                <Route element={<BlockedSettings />} path="blocked" />
+                <Route element={<DeveloperSettings />} path="developer" />
+                <Route
+                  element={<Navigate replace to="/wallet" />}
+                  path="funds"
+                />
+                <Route element={<ManagerSettings />} path="manager" />
+                <Route element={<SessionsSettings />} path="sessions" />
+                <Route element={<UsernameSettings />} path="username" />
+                <Route element={<VerificationSettings />} path="verification" />
+                <Route element={<FAQ />} path="faq" />
+              </Route>
+              <Route path="staff">
+                <Route element={<Staff />} index />
+                <Route element={<Staff />} path="fandrops" />
+                <Route element={<Staff />} path="collaborations" />
+              </Route>
+              <Route element={<Support />} path="support" />
+              <Route element={<FAQ />} path="faq" />
+              <Route element={<Terms />} path="terms" />
+              <Route element={<Privacy />} path="privacy" />
+              <Route element={<Guidelines />} path="guidelines" />
+              <Route element={<Copyright />} path="copyright" />
+              <Route element={<Custom404 />} path="*" />
+            </Route>
+          </>
+        )}
       </RouterRoutes>
     </BrowserRouter>
   );

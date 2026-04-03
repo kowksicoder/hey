@@ -1,12 +1,12 @@
+import { type GetCoinResponse, getCoin, setApiKey } from "@zoralabs/coins-sdk";
+import type { Address } from "viem";
+import { isAddress } from "viem";
+import { base } from "viem/chains";
 import { DEFAULT_AVATAR } from "@/data/constants";
 import getZoraApiKey from "@/helpers/getZoraApiKey";
 import { normalizePlatformLaunchCategory } from "@/helpers/platformCategories";
 import { getPublicExploreCoinOverrides } from "@/helpers/staff";
 import { getSupabaseClient } from "@/helpers/supabase";
-import type { Address } from "viem";
-import { isAddress } from "viem";
-import { base } from "viem/chains";
-import { type GetCoinResponse, getCoin, setApiKey } from "@zoralabs/coins-sdk";
 
 type LaunchProfileRow = {
   avatar_url: null | string;
@@ -56,6 +56,7 @@ export type PublicPlatformLaunch = {
 export type PlatformDiscoverCoin = {
   address: string;
   category?: null | string;
+  coverImageUrl?: null | string;
   createdAt: string;
   creatorAddress: null | string;
   creatorDisplayName?: null | string;
@@ -115,6 +116,7 @@ const buildFallbackCoin = (
 ): PlatformDiscoverCoin => ({
   address: launch.coinAddress,
   category: launch.category,
+  coverImageUrl: launch.coverImageUrl,
   createdAt: launch.launchedAt,
   creatorAddress: launch.creator.walletAddress,
   creatorDisplayName: launch.creator.displayName,
@@ -160,6 +162,7 @@ const buildPlatformCoin = (
 
   return {
     ...fallback,
+    coverImageUrl: fallback.coverImageUrl,
     creatorAddress: fallback.creatorAddress || zoraCoin.creatorAddress || null,
     description: fallback.description ?? zoraCoin.description ?? null,
     marketCap: zoraCoin.marketCap ?? fallback.marketCap,
